@@ -1,0 +1,83 @@
+const R = 6371008.8;
+const rad = (d) => (d * Math.PI) / 180;
+
+export function haversine(a, b) {
+  const dLat = rad(b.lat - a.lat), dLon = rad(b.lon - a.lon);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+/** Přečte trasu z textu GPX. Vrací body {lat, lon, ele, km} (km = kumulativní vzdálenost). */
+export function parseGpx(text) {
+  const pts = [];
+  const re = /<trkpt\s+lat="([^"]+)"\s+lon="([^"]+)"\s*(?:\/>|>([\s\S]*?)<\/trkpt>)/g;
+  let m;
+  while ((m = re.exec(text))) {
+    const ele = m[3] ? (m[3].match(/<ele>([^<]+)<\/ele>/) || [])[1] : null;
+    pts.push({ lat: +m[1], lon: +m[2], ele: ele != null ? +ele : null });
+  }
+  if (pts.length < 2) throw new Error('GPX neobsahuje trasu (trkpt).');
+  let km = 0;
+  pts[0].km = 0;
+  for (let i = 1; i < pts.length; i++) {
+    km += haversine(pts[i - 1], pts[i]) / 1000;
+    pts[i].km = km;
+  }
+  return pts;
+}
+
+/** Souřadnice z Excelu: "50.1373378N, 14.3948711E" */
+export function parseGps(text) {
+  const m = String(text ?? '').match(/(-?\d+(?:[.,]\d+)?)\s*°?\s*N?\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)\s*°?\s*E?/i);
+  if (!m) return null;
+  return { lat: +m[1].replace(',', '.'), lon: +m[2].replace(',', '.') };
+}
+
+/** Najde pro každý bod nejbližší index na trase (postupně dopředu). Vrací {idx[], distM[]}. */
+export function locateHandovers(track, gps) {
+  const idx = [], distM = [];
+  let from = 0;
+  gps.forEach((g, n) => {
+    let best = -1, bd = Infinity;
+    // poslední bod hledáme na konci trasy, aby smyčka nezpůsobila skok zpět
+    const lo = n === gps.length - 1 ? Math.max(from, Math.floor(track.length * 0.9)) : from;
+    for (let i = lo; i < track.length; i++) {
+      const d = haversine(track[i], g);
+      if (d < bd) { bd = d; best = i; }
+    }
+    idx.push(best);
+    distM.push(bd);
+    from = best;
+  });
+  return { idx, distM };
+}
+
+/** Poloha na trase mezi indexy i0..i1 v podílu p (0–1) podle ujeté vzdálenosti. */
+export function pointBetween(track, i0, i1, p) {
+  const target = track[i0].km + Math.min(1, Math.max(0, p)) * (track[i1].km - track[i0].km);
+  let lo = i0, hi = i1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (track[mid].km <= target) lo = mid; else hi = mid;
+  }
+  const a = track[lo], b = track[Math.min(hi, track.length - 1)];
+  const span = b.km - a.km || 1;
+  const t = Math.min(1, Math.max(0, (target - a.km) / span));
+  return { lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t, km: target };
+}
+
+/** Výškový profil (vyhlazený): [{km, ele}] se zhruba n vzorky. */
+export function elevationProfile(track, n = 160) {
+  const total = track[track.length - 1].km;
+  const raw = [];
+  let j = 0;
+  for (let s = 0; s <= n; s++) {
+    const km = (total * s) / n;
+    while (j < track.length - 1 && track[j + 1].km < km) j++;
+    raw.push({ km, ele: track[j].ele ?? 0 });
+  }
+  return raw.map((p, i) => {
+    const w = raw.slice(Math.max(0, i - 2), i + 3);
+    return { km: p.km, ele: w.reduce((a, b) => a + b.ele, 0) / w.length };
+  });
+}

@@ -1,0 +1,10 @@
+{
+  "name": "PraSouš Live",
+  "short_name": "PraSouš",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#F5F4F1",
+  "theme_color": "#CC0000",
+  "lang": "cs",
+  "icons": [{ "src": "logo.png", "sizes": "213x80", "type": "image/png" }]
+}
