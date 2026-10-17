@@ -59,9 +59,12 @@ export async function shareCard(canvas, text) {
   if (navigator.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file], text }); return 'shared'; } catch { return 'cancel'; }
   }
+  // Desktop: Facebook neumí přijmout obrázek, proto ho zkopírujeme do schránky (vložení Ctrl+V do příspěvku) a stáhneme.
+  let copied = false;
+  try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); copied = true; } catch { /* schránka nemusí být povolená */ }
   downloadBlob(blob, 'prasous.png');
   window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(location.href.split('#')[0])}&quote=${encodeURIComponent(text)}`, '_blank', 'noopener');
-  return 'fallback';
+  return copied ? 'copied' : 'fallback';
 }
 
 export function downloadBlob(blob, name) {

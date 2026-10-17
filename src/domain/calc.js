@@ -1,3 +1,4 @@
+/* Výpočty závodu: stav týmu, predikce cíle (poslední předávka + zbývající plán), pořadí podle čistého času od vlastního startu (soutěžní pořadí), pořadí na úseku a poloha na trati. Čas = minuty od půlnoci. */
 import { competitionRank } from './time.js';
 
 /* Výpočty závodu. entries[teamId] = [start, p1..p9] (minuty od půlnoci nebo null). */

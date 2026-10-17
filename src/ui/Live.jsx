@@ -1,23 +1,13 @@
+/* Přehled „Živě“: pořadí týmů, vedoucí tým a siluetu trati. Před závodem odpočet a plán, po závodě konečné výsledky. */
 import { useMemo } from 'react';
 import { useApp, usePrepared, hashGo } from './ctx.jsx';
 import { buildRows, totalKm, legLabel } from './derive.js';
 import { TeamBadge, Delta, Silhouette } from './common.jsx';
 import { fmtDur, fmtHHMM } from '../domain/time.js';
+import { daysUntil } from '../domain/phase.js';
 
-export default function Live() {
-  const { s, now, pinned } = useApp();
-  const race = s.race;
-  const prep = usePrepared(s);
-  const rows = useMemo(() => (race ? buildRows(race, s.entries, now, s.settings) : []), [race, s.entries, now, s.settings]);
-  if (!race) return <Empty />;
-
-  const leader = rows[0];
-  const starts = rows.filter((r) => r.st.started).map((r) => r.ent[0]);
-  const raceStart = starts.length ? Math.min(...starts) : null;
-  const mine = pinned && rows.find((r) => r.team.id === pinned);
-  const finished = rows.every((r) => r.st.finished);
-
-  const Row = ({ r, card }) => (
+function LiveRow({ r, race, card }) {
+  return (
     <a className={card ? undefined : 'li'} onClick={() => hashGo(`/team/${encodeURIComponent(r.team.id)}`)} style={card ? { display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' } : undefined}>
       <span className={`pos ${r.rank === 1 ? 'p1' : ''}`}>{r.rank}</span>
       <TeamBadge look={r.look} />
@@ -27,28 +17,74 @@ export default function Live() {
         <div className="bar" style={{ marginTop: 4 }}><i style={{ width: `${r.progress * 100}%`, background: r.look.color }} /></div>
       </div>
       <div className="rt">
-        <span className="tb" style={{ fontSize: 17 }}>{fmtDur(r.st.finished ? r.st.projectedNet : r.st.projectedNet)}</span>
+        <span className="tb" style={{ fontSize: 17 }}>{fmtDur(r.st.projectedNet)}</span>
         <Delta v={r.st.gap} />
       </div>
     </a>
   );
+}
+
+export default function Live() {
+  const { s, now, pinned } = useApp();
+  const race = s.race;
+  const prep = usePrepared(s);
+  const rows = useMemo(() => (race ? buildRows(race, s.entries, now, s.settings) : []), [race, s.entries, now, s.settings]);
+  if (!race) return <Empty />;
+  if (s.phase === 'before') return <PreRace rows={rows} />;
+
+  const leader = rows[0];
+  const starts = rows.filter((r) => r.st.started).map((r) => r.ent[0]);
+  const raceStart = starts.length ? Math.min(...starts) : null;
+  const mine = pinned && rows.find((r) => r.team.id === pinned);
+  const over = s.phase === 'after' || rows.every((r) => r.st.finished);
 
   return (
     <>
+      {over && <div className="card gold"><h3>{s.phase === 'after' ? `Závod ${s.settings.year} skončil` : 'Všechny týmy jsou v cíli'}</h3><div className="sm">Konečné výsledky podle čistého času od vlastního startu.</div></div>}
       <div className="grid3">
-        <div className="kpi"><b>{raceStart != null ? fmtDur(Math.max(0, now - raceStart)) : '–'}</b><span>V závodě</span></div>
+        <div className="kpi"><b>{raceStart != null ? fmtDur(over ? leader.st.projectedNet : Math.max(0, now - raceStart)) : '–'}</b><span>{over ? 'Čas vítěze' : 'V závodě'}</span></div>
         <div className="kpi"><b>{leader.lp.leg >= 10 ? 'cíl' : `${Math.max(1, leader.lp.leg)}/9`}</b><span>Úsek vedoucího</span></div>
-        <div className="kpi"><b>{fmtHHMM(leader.st.projectedFinish)}</b><span>Predikce 1. v cíli</span></div>
+        <div className="kpi"><b>{fmtHHMM(leader.st.projectedFinish)}</b><span>{over ? 'Cíl vítěze' : 'Predikce 1. v cíli'}</span></div>
       </div>
       {prep?.profile && <div className="card" style={{ padding: '8px 10px' }}>
         <Silhouette profile={prep.profile} progress={leader.progress} height={52} />
         <div className="xs muted">Vedoucí tým: {leader.team.name} · {leader.km.toFixed(1)} z {totalKm(race).toFixed(1)} km</div>
       </div>}
-      <div className="xs muted">Pořadí podle čistého času od vlastního startu. {finished ? 'Závod je dokončen.' : 'Čas = predikce čistého času v cíli (zapsané předávky + plán + uplynulý čas).'}</div>
-      {mine && <div className="card gold"><div className="xs" style={{ fontWeight: 700 }}>📌 Můj tým</div><Row r={mine} card /></div>}
+      <div className="xs muted">Pořadí podle čistého času od vlastního startu. {over ? '' : 'Čas = predikce čistého času v cíli (zapsané předávky + plán + uplynulý čas).'}</div>
+      {mine && <div className="card gold"><div className="xs" style={{ fontWeight: 700 }}>📌 Můj tým</div><LiveRow r={mine} race={race} card /></div>}
       <div className="card" style={{ padding: '4px 12px' }}>
-        <div className="list">{rows.map((r) => <Row key={r.team.id} r={r} />)}</div>
+        <div className="list">{rows.map((r) => <LiveRow key={r.team.id} r={r} race={race} />)}</div>
       </div>
+      <a className="xs muted" style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => hashGo('/archive')}>Starší ročníky</a>
+    </>
+  );
+}
+
+/** Před závodem: odpočet a plánované starty (pořadí a predikce by byly zavádějící). */
+function PreRace({ rows }) {
+  const { s } = useApp();
+  const d = daysUntil(s.settings.date);
+  const first = Math.min(...rows.map((r) => r.st.planStart));
+  const dateText = new Date(`${s.settings.date}T12:00:00`).toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return (
+    <>
+      <div className="card gold" style={{ display: 'grid', gap: 4 }}>
+        <h3>Závod {s.settings.year} začne {dateText}</h3>
+        <div className="sm">První start v {fmtHHMM(first)} · {d === 1 ? 'zítra' : `za ${d} dní`}</div>
+      </div>
+      <div className="sec">Plánované starty a cíle</div>
+      <div className="card" style={{ padding: '4px 12px' }}>
+        <div className="list">
+          {[...rows].sort((a, b) => a.st.planStart - b.st.planStart).map((r) => (
+            <a key={r.team.id} className="li" onClick={() => hashGo(`/team/${encodeURIComponent(r.team.id)}`)}>
+              <TeamBadge look={r.look} />
+              <div className="sp"><div className="nm">{r.team.name}</div><div className="xs muted">plánovaný cíl {fmtHHMM(r.st.predicted[9])}</div></div>
+              <span className="tb">{fmtHHMM(r.st.planStart)}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+      <a className="xs muted" style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => hashGo('/archive')}>Starší ročníky</a>
     </>
   );
 }

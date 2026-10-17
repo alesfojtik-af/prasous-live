@@ -1,3 +1,4 @@
+/* Záložka Úseky: seznam úseků, pořadí a čas na úseku. */
 import { useMemo } from 'react';
 import { useApp, lookOf, hashGo } from './ctx.jsx';
 import { legMinutes, legRanking, POINTS } from '../domain/calc.js';

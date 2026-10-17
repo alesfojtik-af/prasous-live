@@ -1,3 +1,4 @@
+/* Malé sdílené UI komponenty. */
 import { fmtGap } from '../domain/time.js';
 
 export function TeamBadge({ look, size }) {

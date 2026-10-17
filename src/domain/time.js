@@ -82,3 +82,8 @@ export function competitionRank(values) {
   });
   return ranks;
 }
+
+// Názvy bodů závodu na jednom místě: 0 = start, 1–8 = předávky, 9 = cíl
+export const pointLabel = (i) => (i === 0 ? 'Start' : i === 9 ? 'Cíl' : `Předávka ${i}`);
+export const pointShort = (i) => (i === 0 ? 'Start' : i === 9 ? 'Cíl' : `P${i}`);
+export const pointTitle = (i) => (i === 0 ? 'Start týmu' : i === 9 ? 'Cíl · konec úseku 9' : `Předávka ${i} · konec úseku ${i}`);

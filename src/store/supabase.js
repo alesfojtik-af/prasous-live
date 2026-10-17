@@ -1,50 +1,56 @@
+/* Adaptér úložiště pro Supabase: čte z tabulek pl_*, zapisuje výhradně přes funkce v databázi (supabase/schema.sql), které ověřují hesla a pravidla. */
 import { createClient } from '@supabase/supabase-js';
 
-/* Adaptér Supabase (Postgres + realtime). Tabulky viz supabase/schema.sql. */
+/* Adaptér Supabase (Postgres + realtime). Čtení jde přímo z tabulek, všechny zápisy přes funkce v databázi,
+   které na serveru ověří heslo (viz supabase/schema.sql). Rozhraní je stejné jako u lokálního adaptéru. */
 
 export function createSupabaseAdapter(url, key) {
   const sb = createClient(url, key, { realtime: { params: { eventsPerSecond: 10 } } });
   const must = (res) => { if (res.error) throw new Error(res.error.message); return res.data; };
+  const rpc = async (fn, args) => must(await sb.rpc(fn, args));
 
   return {
     name: 'supabase',
-    async load() {
-      const [race, entries, history, settings, passwords] = await Promise.all([
-        sb.from('app_race').select('*').eq('id', 1).maybeSingle().then(must),
-        sb.from('app_entries').select('*').then(must),
-        sb.from('app_history').select('*').order('id', { ascending: false }).limit(300).then(must),
-        sb.from('app_settings').select('*').then(must),
-        sb.from('app_passwords').select('*').then(must),
+    async loadCommon() {
+      const [editions, settings] = await Promise.all([
+        sb.from('pl_editions').select('id,label,race_date,updated_at').order('id').then(must),
+        sb.from('pl_settings').select('*').then(must),
+      ]);
+      return { editions, settings: Object.fromEntries(settings.map((s) => [s.key, s.value])) };
+    },
+    async loadEditionBody(id) {
+      const r = must(await sb.from('pl_editions').select('data,gpx,updated_at').eq('id', id).maybeSingle());
+      return r ? { race: r.data, gpx: r.gpx, updated_at: r.updated_at } : null;
+    },
+    async loadXlsx(id) { return must(await sb.from('pl_editions').select('xlsx_b64').eq('id', id).maybeSingle())?.xlsx_b64 ?? null; },
+    async loadEntries(id) {
+      const [entries, history] = await Promise.all([
+        sb.from('pl_entries').select('*').eq('edition', id).then(must),
+        sb.from('pl_history').select('*').eq('edition', id).order('id', { ascending: false }).limit(300).then(must),
       ]);
       const ent = {};
       for (const e of entries) (ent[e.team] ||= [])[e.point] = { minutes: e.minutes, by: e.by_who, at: e.at, src: e.src };
-      return {
-        race: race?.data ?? null, xlsxB64: race?.xlsx_b64 ?? null, gpx: race?.gpx ?? null,
-        entries: ent,
-        history: history.reverse().map((h) => ({ id: h.id, team: h.team, point: h.point, old: h.old_minutes, new: h.new_minutes, by: h.by_who, reason: h.reason, at: h.at })),
-        settings: Object.fromEntries(settings.map((s) => [s.key, s.value])),
-        passwords: Object.fromEntries(passwords.map((p) => [p.team, p.password])),
-      };
+      return { entries: ent, history: history.reverse().map((h) => ({ id: h.id, edition: h.edition, team: h.team, point: h.point, old: h.old_minutes, new: h.new_minutes, by: h.by_who, reason: h.reason, at: h.at })) };
     },
-    async saveRace(race, xlsxB64, gpx) {
-      must(await sb.from('app_race').upsert({ id: 1, data: race, xlsx_b64: xlsxB64, gpx, updated_at: new Date().toISOString() }));
-    },
-    async upsertEntry({ team, point, minutes, by, at, src, reason, old }) {
-      must(await sb.from('app_history').insert({ team, point, old_minutes: old ?? null, new_minutes: minutes, by_who: by, reason: reason || '', at }));
-      if (minutes == null) must(await sb.from('app_entries').delete().eq('team', team).eq('point', point));
-      else must(await sb.from('app_entries').upsert({ team, point, minutes, by_who: by, at, src }));
-    },
-    async clearEntries() {
-      must(await sb.from('app_entries').delete().neq('team', '\u0000'));
-      must(await sb.from('app_history').delete().neq('id', -1));
-    },
-    async setSetting(key, value) { must(await sb.from('app_settings').upsert({ key, value })); },
-    async setPassword(team, password) { must(await sb.from('app_passwords').upsert({ team, password })); },
+
+    checkAdmin: (pw) => rpc('pl_check_admin', { p_pw: pw }),
+    checkTeam: (ed, team, pw) => rpc('pl_check_team', { p_edition: ed, p_team: team, p_pw: pw }),
+    submitEntry: ({ edition, team, point, minutes, by, at, pw }) => rpc('pl_submit_entry', { p_edition: edition, p_team: team, p_point: point, p_minutes: minutes, p_by: by, p_pw: pw, p_at: at }),
+    adminSetEntry: ({ adminPw, edition, team, point, minutes, reason }) => rpc('pl_admin_set_entry', { p_admin_pw: adminPw, p_edition: edition, p_team: team, p_point: point, p_minutes: minutes, p_reason: reason || '' }),
+    adminClear: (adminPw, edition) => rpc('pl_admin_clear_entries', { p_admin_pw: adminPw, p_edition: edition }),
+    adminSaveEdition: (adminPw, { id, label, date, race, xlsxB64, gpx, replace }) => rpc('pl_admin_save_edition', { p_admin_pw: adminPw, p_id: id, p_label: label, p_date: date || null, p_data: race, p_xlsx: xlsxB64, p_gpx: gpx, p_replace: !!replace }),
+    adminVersions: (adminPw, edition) => rpc('pl_admin_versions', { p_admin_pw: adminPw, p_edition: edition }),
+    adminRestoreVersion: (adminPw, versionId) => rpc('pl_admin_restore_version', { p_admin_pw: adminPw, p_version_id: versionId }),
+    adminSetActive: (adminPw, id) => rpc('pl_admin_set_active', { p_admin_pw: adminPw, p_edition: id }),
+    adminSetSetting: (adminPw, key, value) => rpc('pl_admin_set_setting', { p_admin_pw: adminPw, p_key: key, p_value: value }),
+    adminSetTeamPw: (adminPw, edition, team, pw) => rpc('pl_admin_set_team_pw', { p_admin_pw: adminPw, p_edition: edition, p_team: team, p_new: pw || '' }),
+    adminChangePw: (oldPw, newPw) => rpc('pl_admin_change_pw', { p_old: oldPw, p_new: newPw }),
+
     subscribe(cb) {
       let t;
       const kick = () => { clearTimeout(t); t = setTimeout(cb, 250); };
       const ch = sb.channel('prasous-live');
-      for (const table of ['app_race', 'app_entries', 'app_history', 'app_settings', 'app_passwords'])
+      for (const table of ['pl_editions', 'pl_entries', 'pl_history', 'pl_settings'])
         ch.on('postgres_changes', { event: '*', schema: 'public', table }, kick);
       ch.subscribe();
       const poll = setInterval(cb, 20000); // pojistka, kdyby realtime vypadl

@@ -1,3 +1,4 @@
+/* Odvozená data pro UI (řádky pořadí, předpřipravená trasa) z čistých výpočtů v domain/. */
 import { liveRanking, legProgress, kmAt, lastIndex, POINTS } from '../domain/calc.js';
 import { lookOf } from './ctx.jsx';
 

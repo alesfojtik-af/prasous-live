@@ -108,3 +108,21 @@ describe('export', () => {
     expect(wb.getWorksheet('SOUHRN')).toBeTruthy();
   });
 });
+
+import { racePhase, daysUntil } from '../src/domain/phase.js';
+import { pointLabel, pointShort, pointTitle } from '../src/domain/time.js';
+describe('fáze závodu a názvy bodů', () => {
+  const d = (s) => new Date(s);
+  it('racePhase', () => {
+    expect(racePhase('2026-04-25', d('2026-04-20T10:00:00+02:00'), false)).toBe('before');
+    expect(racePhase('2026-04-25', d('2026-04-25T12:00:00+02:00'), false)).toBe('live');
+    expect(racePhase('2026-04-25', d('2026-04-30T12:00:00+02:00'), false)).toBe('after');
+    expect(racePhase('2026-04-25', d('2026-04-20T10:00:00+02:00'), true)).toBe('live');
+    expect(daysUntil('2026-04-25', d('2026-04-20T10:00:00+02:00'))).toBe(5);
+  });
+  it('pointLabel', () => {
+    expect([pointLabel(0), pointLabel(3), pointLabel(9)]).toEqual(['Start', 'Předávka 3', 'Cíl']);
+    expect([pointShort(0), pointShort(3), pointShort(9)]).toEqual(['Start', 'P3', 'Cíl']);
+    expect(pointTitle(3)).toBe('Předávka 3 · konec úseku 3');
+  });
+});

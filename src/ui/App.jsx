@@ -1,4 +1,6 @@
+/* Kořen aplikace: router (hash), přihlášení, kontext (stav, store, čas), hlavička s příznaky fáze/simulace/archivu a banery. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+/* Kostra aplikace: směrování, přihlášení, hlavička, spodní lišta a hodiny simulace. */
 import { createStore } from '../store/index.js';
 import { Ctx, useStoreState, useNow, hashGo } from './ctx.jsx';
 import { Icons } from './common.jsx';
@@ -9,10 +11,14 @@ import { TeamList, TeamDetail } from './Teams.jsx';
 import Login from './Login.jsx';
 import Captain from './Captain.jsx';
 import Admin from './Admin.jsx';
+import Archive from './Archive.jsx';
+import { daysUntil } from '../domain/phase.js';
 import { fmtHHMM } from '../domain/time.js';
 
 const store = createStore();
-const readJson = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const readJson = (k, d, st = localStorage) => { try { return JSON.parse(st.getItem(k)) ?? d; } catch { return d; } };
+// heslo admina se pamatuje jen do zavření záložky, heslo kapitána na tomto telefonu
+const readAuth = () => readJson('prasous.auth', null, sessionStorage) ?? readJson('prasous.auth', { role: 'viewer' });
 
 function useRoute() {
   const get = () => (location.hash.replace(/^#/, '') || '/live').split('/').filter(Boolean);
@@ -21,46 +27,20 @@ function useRoute() {
   return r;
 }
 
-/** Simulace běží v okně admina: posouvá simulovaný čas a vkládá zápisy podle Excelu. */
-function useSimRunner(s, auth) {
-  const ref = useRef(s);
-  ref.current = s;
-  useEffect(() => {
-    if (auth.role !== 'admin') return;
-    let busy = false;
-    const id = setInterval(async () => {
-      const cur = ref.current, sim = cur.settings.sim;
-      if (busy || !sim?.on || !sim.running || !cur.race) return;
-      busy = true;
-      try {
-        const end = Math.max(...cur.race.teams.map((t) => t.scenario?.[9] ?? 0)) + 10;
-        const nowSim = Math.min(end, sim.now + (sim.rate || 6));
-        const due = [];
-        for (const t of cur.race.teams) for (let i = 0; i < 10; i++) {
-          const m = t.scenario?.[i];
-          if (m != null && m <= nowSim && cur.entries[t.id][i] == null) due.push({ team: t.id, point: i, minutes: m });
-        }
-        if (due.length) await store.simWrite(due);
-        await store.setSetting('sim', { ...sim, now: nowSim, running: nowSim < end });
-      } finally { busy = false; }
-    }, 1000);
-    return () => clearInterval(id);
-  }, [auth.role]);
-}
-
 export default function App() {
   const s = useStoreState(store);
-  const [auth, setAuthState] = useState(() => readJson('prasous.auth', { role: 'viewer' }));
+  const [auth, setAuthState] = useState(readAuth);
   const [pinned, setPinnedState] = useState(() => readJson('prasous.pinned', null));
   const [msg, setMsg] = useState(null);
   const route = useRoute();
   useEffect(() => { store.init(); }, []);
   const now = useNow(s.ready ? s : { settings: {} });
 
-  const setAuth = useCallback((a) => { localStorage.setItem('prasous.auth', JSON.stringify(a)); setAuthState(a); if (a.role === 'captain' && !readJson('prasous.pinned', null)) { setPinnedState(a.team); localStorage.setItem('prasous.pinned', JSON.stringify(a.team)); } }, []);
+  const setAuth = useCallback((a) => { sessionStorage.removeItem('prasous.auth'); localStorage.removeItem('prasous.auth'); (a.role === 'admin' ? sessionStorage : localStorage).setItem('prasous.auth', JSON.stringify(a)); store.setCreds(a.role === 'admin' ? { role: 'admin', adminPw: a.pw } : a); setAuthState(a); if (a.role === 'captain' && !readJson('prasous.pinned', null)) { setPinnedState(a.team); localStorage.setItem('prasous.pinned', JSON.stringify(a.team)); } }, []);
   const setPinned = useCallback((id) => { localStorage.setItem('prasous.pinned', JSON.stringify(id)); setPinnedState(id); }, []);
   const toast = useCallback((m) => { setMsg(m); setTimeout(() => setMsg(null), 3500); }, []);
-  useSimRunner(s, auth);
+  useEffect(() => { store.setCreds(auth.role === 'admin' ? { role: 'admin', adminPw: auth.pw } : auth); }, [s.ready]); // eslint-disable-line
+  useEffect(() => { const id = setInterval(() => store.simTick(), 1000); return () => clearInterval(id); }, []);
   const routeKey = route.join('/');
   useEffect(() => { document.querySelector('main')?.scrollTo(0, 0); }, [routeKey]);
 
@@ -84,6 +64,7 @@ export default function App() {
     case 'login': body = <Login />; break;
     case 'captain': body = <Captain />; break;
     case 'admin': body = <Admin />; break;
+    case 'archive': body = <Archive />; break;
     default: body = <Live />;
   }
   const fill = page === 'map' || page === 'finale';
@@ -97,10 +78,16 @@ export default function App() {
           <span className="year">{s.settings.year}</span>
           <span className="sp" />
           {!s.online ? <span className="live off">BEZ SIGNÁLU{pendingN ? ` · ${pendingN}` : ''}</span>
-            : sim ? <span className="live sim">SIMULACE {fmtHHMM(s.settings.sim.now)}</span> : <span className="live">ŽIVĚ</span>}
+            : sim ? <span className="live sim" onClick={() => hashGo('/admin')} style={{ cursor: 'pointer' }}>SIMULACE {fmtHHMM(s.settings.sim.now)}</span>
+            : s.isArchive ? <span className="live off">ARCHIV</span>
+            : s.phase === 'before' ? <span className="live off">ZA {daysUntil(s.settings.date)} DNÍ</span>
+            : s.phase === 'after' ? <span className="live off">VÝSLEDKY</span>
+            : <span className="live">ŽIVĚ</span>}
           <a onClick={() => hashGo('/login')} style={{ cursor: 'pointer', color: auth.role === 'viewer' ? '#6A645E' : '#CC0000', width: 24, height: 24 }} title={auth.role === 'viewer' ? 'Přihlásit' : 'Účet'}>{Icons.login}</a>
         </header>
         {s.banner && <div className="banner">{s.banner}</div>}
+        {sim && <div className="banner">Simulace běží jen na tomto zařízení, do databáze se nic neukládá. Zastavíš ji v Admin → Simulace.</div>}
+        {s.isArchive && <div className="banner">Prohlížíš starší ročník {s.settings.year}. <a style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => { store.viewEdition(null); hashGo('/live'); }}>Zpět na aktuální</a></div>}
         <main className={fill ? 'fill' : ''}>{body}</main>
         <nav className="tabs">{tabs.map(([k, label, icon]) => <a key={k} className={active === k ? 'on' : ''} onClick={() => hashGo(`/${k}`)} style={{ cursor: 'pointer' }}>{icon}{label}</a>)}</nav>
         {msg && <div className="toast">{msg}</div>}

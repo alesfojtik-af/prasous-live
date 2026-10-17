@@ -30,7 +30,16 @@ Zkoušení bez signálu: na stránce kapitána zaškrtni „Vyzkoušet bez sign�
 ### Příprava Supabase (jednorázově)
 1. V projektu otevři **SQL Editor** → New query.
 2. Vlož celý obsah `supabase/schema.sql` a klikni **Run**.
-3. Obnov aplikaci. Admin → Ostatní → „Datové úložiště“ musí ukazovat Supabase.
+3. V novém dotazu spusť **jen jednou** `select pl_init_admin('tvé-heslo-min-8-znaků');` – nastaví heslo admina (v databázi jen jako hash; funkci anonymní klíč nespustí).
+4. Obnov aplikaci a přihlas se jako Admin tímto heslem. Admin → Ostatní → „Datové úložiště“ musí ukazovat Supabase.
+
+Schéma je přidávací a jde spustit i opakovaně. Staré tabulky `app_*` z prvního prototypu se nepoužívají (nemažou se).
+
+## Ročníky
+Nahrání nového Excelu v Admin → Import vytvoří nový ročník; předchozí zůstává v archivu (odkaz „Starší ročníky“). Přepsání ročníku ukládá starou verzi, kterou jde obnovit (Admin → Ročníky). Zápisy se nikdy nemažou; „Smazat zápisy“ je nejdřív zazálohuje do historie a Excelu. Zápis času je povolen jen v den závodu (do 6:00 dalšího dne); před ním se zobrazí odpočet, po něm konečné výsledky.
+
+## Simulace
+Jen pro zkoušení, běží lokálně v zařízení admina a nic nezapisuje do databáze. Ukončení simulace všechny simulované časy zahodí.
 
 ## Nasazení (GitHub Pages)
 Repozitář → Settings → Pages → Source: **GitHub Actions**. Po každém pushi do `main` se spustí `.github/workflows/deploy.yml` (testy, build, nasazení).
@@ -43,7 +52,7 @@ Repozitář → Settings → Pages → Source: **GitHub Actions**. Po každém p
 - `docs/` datový model, offline zápis, simulace a plán testování
 
 ## Známá omezení prototypu
-- **Zabezpečení:** hesla týmů a heslo admina hlídá aplikace, ne databáze. Heslo admina je vidět v kódu aplikace a databáze povoluje zápis anonymnímu klíči. Pro hru to stačí, před širším provozem přejít na Supabase Auth a RLS podle rolí.
+- **Zabezpečení:** zápisy jdou jen přes funkce v databázi, které ověřují heslo (bcrypt), omezují počet pokusů a hlídají datum závodu. Hesla týmů jsou zatím výchozí (název týmu). Verze 2 databáze nebyla zkoušena proti živému Supabase z vývojového prostředí – první běh ověřuje Aleš.
 - Mapové podklady: OpenStreetMap (Mapy.cz vyžaduje API klíč; výměna je jedna řádka v `src/ui/MapPage.jsx`).
 - Video závodu: tlačítko otevře přehrání celého závodu a stažení karet týmů; export do video souboru zatím není.
 - Závod přes půlnoc není podporován (časy jsou HH:MM v rámci jednoho dne).

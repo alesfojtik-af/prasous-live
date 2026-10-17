@@ -1,3 +1,4 @@
+/* Sdílený stav aplikace pro obrazovky: kontext, hodiny závodu, trasa z GPX a vzhled týmů. */
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { parseGpx, locateHandovers, pointBetween, elevationProfile } from '../domain/gpx.js';
 import { nowMinutes } from '../domain/time.js';

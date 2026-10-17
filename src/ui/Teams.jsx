@@ -1,3 +1,4 @@
+/* Záložky Týmy a detail týmu: pořadí, předávky, karta ke sdílení (PNG) na Facebook. */
 import { useMemo, useRef, useEffect, useState } from 'react';
 import { useApp, usePrepared, hashGo } from './ctx.jsx';
 import { buildRows } from './derive.js';
@@ -49,7 +50,8 @@ export function TeamDetail({ id }) {
   const share = async () => {
     const c = await makeCard(); setCard(c.toDataURL());
     const res = await shareCard(c, `${t.name} na PraSouši ${s.settings.year}: ${r.rank}. místo, čistý čas ${fmtDur(r.st.projectedNet)} 🏃`);
-    if (res === 'fallback') toast('Karta se stáhla, Facebook se otevřel v novém okně.');
+    if (res === 'copied') toast('Obrázek je ve schránce a stažený. Ve Facebooku ho vložte Ctrl+V.');
+    else if (res === 'fallback') toast('Karta se stáhla, Facebook se otevřel v novém okně.');
   };
 
   return (

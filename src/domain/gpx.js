@@ -1,3 +1,4 @@
+/* Načtení GPX trasy, kumulativní vzdálenosti, převýšení a umístění bodů předávek na trase podle GPS z Excelu. */
 const R = 6371008.8;
 const rad = (d) => (d * Math.PI) / 180;
 

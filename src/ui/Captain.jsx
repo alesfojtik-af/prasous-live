@@ -1,7 +1,8 @@
+/* Obrazovka kapitána: zápis startu a předávek s kontrolou času, fronta zápisů a práce bez signálu. */
 import { useMemo, useState } from 'react';
 import { useApp, hashGo } from './ctx.jsx';
 import { lastIndex, teamState } from '../domain/calc.js';
-import { fmtHHMM, fmtDur, nowMinutes, validateEntry, parseHHMM } from '../domain/time.js';
+import { fmtHHMM, fmtDur, validateEntry, pointLabel, pointTitle } from '../domain/time.js';
 
 const normTxt = (x) => (/^\d{3,4}$/.test(x) ? `${x.slice(0, -2)}:${x.slice(-2)}` : x);
 
@@ -26,6 +27,7 @@ function CaptainInner({ t }) {
   const predicted = np === 0 ? t.planStart : st.predicted[np];
   const val = useMemo(() => validateEntry(normTxt(txt), { prev: np > 0 ? ent[np - 1] : null, predicted, now, isAdmin: false }), [txt, np, ent, predicted, now]);
   const mine = s.outbox.filter((o) => o.team === t.id);
+  const canWrite = s.phase === 'live' && !s.isArchive;
   const pending = mine.filter((o) => o.status === 'pending').length;
 
   const press = (k) => setTxt((cur) => {
@@ -42,7 +44,7 @@ function CaptainInner({ t }) {
     setTxt(''); setConfirm(false); setBusy(false);
     toast(s.online ? 'Předávka zapsána ✓' : 'Uloženo v telefonu, odešle se po obnovení signálu.');
   };
-  const label = np === 0 ? 'Start týmu' : np === 9 ? 'Cíl · konec úseku 9' : `Předávka ${np} · konec úseku ${np}`;
+  const label = pointTitle(np);
 
   return (
     <>
@@ -51,7 +53,8 @@ function CaptainInner({ t }) {
         {!s.online && <span className="pill conf">📶 bez signálu</span>}
         {pending > 0 && <span className="pill pend">⏳ čeká: {pending}</span>}
       </div>
-      {done ? <div className="card gold"><h3>Všechny body zapsány 🎉</h3><div className="sm">Čistý čas: {fmtDur(ent[9] - ent[0])}. Případné opravy provede admin.</div></div> : (
+      {!canWrite && !done && <div className="card gold"><div className="sm">Zápis je možný jen v den závodu na aktuálním ročníku.</div></div>}
+      {done ? <div className="card gold"><h3>Všechny body zapsány 🎉</h3><div className="sm">Čistý čas: {fmtDur(ent[9] - ent[0])}. Případné opravy provede admin.</div></div> : !canWrite ? null : (
         <>
           <div className="card" style={{ display: 'grid', gap: 4 }}>
             <span className="sec" style={{ margin: 0 }}>Další bod</span>
@@ -81,18 +84,21 @@ function CaptainInner({ t }) {
         <div className="list">
           {[...mine].reverse().map((o) => (
             <div className="li" key={o.id} style={{ cursor: 'default', flexWrap: 'wrap' }}>
-              <div className="sp"><b>{o.point === 0 ? 'Start' : o.point === 9 ? 'Cíl' : `Předávka ${o.point}`} · <span className="t">{fmtHHMM(o.minutes)}</span></b>
+              <div className="sp"><b>{pointLabel(o.point)} · <span className="t">{fmtHHMM(o.minutes)}</span></b>
                 <div className="xs muted">zadáno {new Date(o.createdAt).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}</div></div>
               {o.status === 'pending' && <span className="pill pend">⏳ čeká</span>}
               {o.status === 'sent' && <span className="pill sent">✓ odesláno</span>}
               {o.status === 'conflict' && <><span className="pill conf">⚠ k ověření</span>
-                <button className="btn sm ghost" onClick={() => store.retryConflict(o.id, true)}>Přepsat moje</button>
+                <div className="xs muted" style={{ width: '100%' }}>V databázi je už jiný čas. Zápis oprav přes admina.</div>
+                <button className="btn sm ghost" onClick={() => store.retryConflict(o.id, false)}>Zahodit</button></>}
+              {o.status === 'error' && <><span className="pill conf">✕ nepřijato</span>
+                <div className="xs errmsg" style={{ width: '100%' }}>{o.error}</div>
                 <button className="btn sm ghost" onClick={() => store.retryConflict(o.id, false)}>Zahodit</button></>}
             </div>
           ))}
           {ent.map((m, i) => (m != null && !mine.some((o) => o.point === i && o.status !== 'sent') && !mine.some((o) => o.point === i) ? (
             <div className="li" key={`e${i}`} style={{ cursor: 'default' }}>
-              <div className="sp"><b>{i === 0 ? 'Start' : i === 9 ? 'Cíl' : `Předávka ${i}`} · <span className="t">{fmtHHMM(m)}</span></b><div className="xs muted">v databázi</div></div><span className="pill sent">✓</span></div>
+              <div className="sp"><b>{pointLabel(i)} · <span className="t">{fmtHHMM(m)}</span></b><div className="xs muted">v databázi</div></div><span className="pill sent">✓</span></div>
           ) : null))}
         </div>
         {!mine.length && !ent.some((x) => x != null) && <div className="xs muted" style={{ padding: 8 }}>Zatím nic nezapsáno.</div>}

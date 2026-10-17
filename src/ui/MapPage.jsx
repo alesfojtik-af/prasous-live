@@ -1,3 +1,4 @@
+/* Záložka Mapa: OpenStreetMap, trasa z GPX, polohy týmů a předávek; zoom zůstává, tlačítka Celá trať a Týmy. */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';

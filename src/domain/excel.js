@@ -1,3 +1,4 @@
+/* Import a export Excelu ve formátu 8aD (první list = trasa, list na tým). Sloupce se hledají podle textu hlavičky; export zachová vzorce. */
 import ExcelJS from 'exceljs';
 import { parseGps } from './gpx.js';
 
