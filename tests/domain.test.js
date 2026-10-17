@@ -150,3 +150,16 @@ describe('Excel po půlnoci', () => {
     expect(unwrapDays([300, 400, 500])).toEqual([300, 400, 500]);
   });
 });
+
+import { raceComment } from '../src/domain/comment.js';
+describe('slovní hodnocení', () => {
+  it('jedna věta o plánu pro tým i celý závod', () => {
+    const entries = entriesFromScenario(race);
+    const all = raceComment(race, entries);
+    const mine = raceComment(race, entries, race.teams[0].id);
+    expect(all).toMatch(/^Závod dokončilo 7 týmů/);
+    expect(mine).toContain(race.teams[0].name);
+    expect(mine.split('. ').length).toBeLessThanOrEqual(2); // jedna věta (bod za pořadím nepočítáme)
+    expect(raceComment(race, {})).toBe('');
+  });
+});

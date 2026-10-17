@@ -1,5 +1,16 @@
 /* Karta ke sdílení (PNG): logo, ročník, tým, pořadí, čistý čas, silueta trati a pruh postupu 0–100 %. */
 
+/** Zalomí text na řádky o nejvýš maxW pixelů (podle aktuálního písma). */
+export function wrapLines(g, text, maxW) {
+  const lines = []; let cur = '';
+  for (const w of String(text).split(/\s+/)) {
+    const t = cur ? `${cur} ${w}` : w;
+    if (g.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
 export function fileToImage(file) {
   return new Promise((res) => { const u = URL.createObjectURL(file); const i = new Image(); i.onload = () => { res(i); }; i.onerror = () => res(null); i.src = u; });
 }
@@ -8,8 +19,9 @@ function loadImg(src) {
   return new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
 }
 
-export async function drawShareCard({ teamName, emoji, color, rank, netText, statusText, progress, profile, year }) {
-  const W = 1080, H = 1350;
+export async function drawShareCard({ teamName, emoji, color, rank, netText, statusText, progress, profile, year, congrats }) {
+  // po konci závodu (congrats = { headline, text }) je karta delší o blok s gratulací
+  const W = 1080, H = congrats ? 1620 : 1350;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d');
   g.fillStyle = '#F5F4F1'; g.fillRect(0, 0, W, H);
@@ -52,6 +64,13 @@ export async function drawShareCard({ teamName, emoji, color, rank, netText, sta
   g.fillStyle = '#141414'; g.font = '700 44px Figtree, system-ui, sans-serif';
   g.fillText(`${Math.round(progress * 100)} % trati`, x0, by + 100);
   g.textAlign = 'right'; g.fillStyle = '#6A645E'; g.font = '600 34px Figtree, system-ui, sans-serif'; g.fillText('PraSouš Live', x1, by + 100);
+  g.textAlign = 'left';
+  if (congrats) {
+    g.fillStyle = '#FFC23D'; g.beginPath(); g.roundRect(x0, 1230, x1 - x0, 340, 28); g.fill();
+    g.fillStyle = '#141414'; g.font = '800 54px Poppins, system-ui, sans-serif'; g.fillText(congrats.headline, x0 + 36, 1305);
+    g.font = '500 36px Figtree, system-ui, sans-serif';
+    wrapLines(g, congrats.text, x1 - x0 - 72).slice(0, 5).forEach((l, i) => g.fillText(l, x0 + 36, 1362 + i * 48));
+  }
   return c;
 }
 

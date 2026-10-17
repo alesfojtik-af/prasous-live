@@ -102,7 +102,7 @@ export default function MapPage({ finale }) {
           <button className="pbtn ghost" onClick={() => { setPlaying(false); setT(Math.min(tMax, t + 60)); }}>+1 h</button>
           <button className="pbtn" onClick={() => { setPlaying(false); setT(null); }}>Živě</button>
         </div>
-        {finale && <button className="pbtn" onClick={() => downloadAllCards(rows, prep, s.settings)}>⬇ Stáhnout výsledkové karty týmů</button>}
+        {finale && <button className="pbtn" onClick={() => downloadAllCards(rows, prep, s.settings, race, s.entries)}>⬇ Stáhnout výsledkové karty týmů</button>}
       </div>
     </>
   );

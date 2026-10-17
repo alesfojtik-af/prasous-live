@@ -5,6 +5,7 @@ import { buildRows } from './derive.js';
 import { TeamBadge, Delta } from './common.jsx';
 import { legMinutes, legRanking, rankingAtPoint, netAt, cumPlan } from '../domain/calc.js';
 import { fmtDur, fmtHHMM, fmtGap, paceTxt } from '../domain/time.js';
+import { CONGRATS, raceComment } from '../domain/comment.js';
 import { recordRaceVideo } from './video.js';
 import { drawShareCard, shareCard, canvasToBlob, downloadBlob } from './share.js';
 
@@ -51,11 +52,12 @@ export function TeamDetail({ id }) {
     const m = legMinutes(ent, i + 1);
     if (m != null) { p.doneMin += m; p.donePlan += l.planMin; p.doneKm += race.legs[i].km; } });
 
+  const raceOver = s.phase === 'after' || race.teams.every((x) => s.entries[x.id]?.[9] != null);
   const makeCard = async () => drawShareCard({
     teamName: t.name, emoji: r.look.emoji, color: r.look.color, rank: r.rank, netText: fmtDur(r.st.projectedNet),
     statusText: r.st.finished ? 'v cíli' : r.lp.leg ? `úsek ${r.lp.leg} z 9` : 'před startem', progress: Math.min(1, r.progress), profile: prep?.profile, year: s.settings.year,
+    congrats: raceOver && ent[9] != null ? { headline: CONGRATS, text: raceComment(race, s.entries, t.id) } : null, // gratulace až po cíli týmu
   });
-  const raceOver = s.phase === 'after' || race.teams.every((x) => s.entries[x.id]?.[9] != null);
   // Video celého závodu se zvýrazněným týmem a kartou týmu na konci; ukládá se jen do telefonu, nic se neposílá do databáze.
   const makeVideo = async () => {
     setVid(0);
@@ -119,9 +121,9 @@ export function TeamDetail({ id }) {
   );
 }
 
-export async function downloadAllCards(rows, prep, settings) {
+export async function downloadAllCards(rows, prep, settings, race, entries) {
   for (const r of rows) {
-    const c = await drawShareCard({ teamName: r.team.name, emoji: r.look.emoji, color: r.look.color, rank: r.rank, netText: fmtDur(r.st.projectedNet), statusText: r.st.finished ? 'v cíli' : 'v závodě', progress: Math.min(1, r.progress), profile: prep?.profile, year: settings.year });
+    const c = await drawShareCard({ teamName: r.team.name, emoji: r.look.emoji, color: r.look.color, rank: r.rank, netText: fmtDur(r.st.projectedNet), statusText: r.st.finished ? 'v cíli' : 'v závodě', progress: Math.min(1, r.progress), profile: prep?.profile, year: settings.year, congrats: r.st.finished ? { headline: CONGRATS, text: raceComment(race, entries, r.team.id) } : null });
     downloadBlob(await canvasToBlob(c), `prasous-${settings.year}-${r.rank}-${r.team.name.replace(/\W+/g, '_')}.png`);
     await new Promise((res) => setTimeout(res, 350));
   }
