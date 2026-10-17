@@ -50,6 +50,7 @@ export function createStore() {
   async function flush() {
     if (flushing || !adapter || forceOffline || navigator.onLine === false) return;
     flushing = true;
+    let sentAny = false;
     try {
       for (const o of outbox.filter((x) => x.status === 'pending')) {
         const cur = raw.entries[o.team]?.[o.point];
@@ -57,13 +58,13 @@ export function createStore() {
         if (cur && cur.by === 'admin' && cur.minutes !== o.minutes && cur.at > o.createdAt) { o.status = 'conflict'; continue; }
         try {
           await adapter.upsertEntry({ team: o.team, point: o.point, minutes: o.minutes, by: o.by, at: o.createdAt, src: o.src, old: cur?.minutes ?? null });
-          o.status = 'sent'; o.sentAt = new Date().toISOString();
+          o.status = 'sent'; o.sentAt = new Date().toISOString(); sentAny = true;
         } catch { break; } // bez signálu: zkusíme znovu později
       }
       outbox = outbox.filter((x) => x.status !== 'sent' || Date.now() - Date.parse(x.sentAt) < 6 * 3600e3);
       saveOutbox();
     } finally { flushing = false; }
-    await refresh();
+    if (sentAny) await refresh(); // bez odeslaných zápisů se data nenačítají (šetří databázi, nic se zbytečně nepřekresluje)
   }
 
   const store = {
