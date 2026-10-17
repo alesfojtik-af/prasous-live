@@ -4,11 +4,8 @@ import { useApp, usePrepared, hashGo } from './ctx.jsx';
 import { buildRows } from './derive.js';
 import { TeamBadge, Delta } from './common.jsx';
 import { legMinutes, legRanking, rankingAtPoint, netAt, cumPlan } from '../domain/calc.js';
-import { fmtDur, fmtHHMM, fmtGap } from '../domain/time.js';
+import { fmtDur, fmtHHMM, fmtGap, paceTxt } from '../domain/time.js';
 import { drawShareCard, shareCard, canvasToBlob, downloadBlob } from './share.js';
-
-// Tempo v min:vteř na kilometr.
-const paceTxt = (minPerKm) => { const sec = Math.round(minPerKm * 60); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; };
 
 export function TeamList() {
   const { s, now, pinned, setPinned } = useApp();

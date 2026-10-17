@@ -87,3 +87,6 @@ export function competitionRank(values) {
 export const pointLabel = (i) => (i === 0 ? 'Start' : i === 9 ? 'Cíl' : `Předávka ${i}`);
 export const pointShort = (i) => (i === 0 ? 'Start' : i === 9 ? 'Cíl' : `P${i}`);
 export const pointTitle = (i) => (i === 0 ? 'Start týmu' : i === 9 ? 'Cíl · konec úseku 9' : `Předávka ${i} · konec úseku ${i}`);
+
+/** Tempo v min:vt na kilometr (z minut na km). */
+export const paceTxt = (minPerKm) => { const sec = Math.round(minPerKm * 60); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; };

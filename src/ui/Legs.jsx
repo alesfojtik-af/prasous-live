@@ -4,7 +4,7 @@ import { useApp, lookOf, hashGo } from './ctx.jsx';
 import { legMinutes, legRanking, rankingAtPoint, netAt, cumPlan } from '../domain/calc.js';
 import { buildRows } from './derive.js';
 import { TeamBadge, Delta } from './common.jsx';
-import { fmtDur, fmtHHMM, fmtGap } from '../domain/time.js';
+import { fmtDur, fmtHHMM, fmtGap, paceTxt } from '../domain/time.js';
 
 export default function Legs({ n }) {
   const { s, now } = useApp();
@@ -43,7 +43,7 @@ export default function Legs({ n }) {
       <div className="sec">Úsek {leg} a pořadí po něm</div>
       <div className="card" style={{ padding: '4px 8px', overflowX: 'auto' }}>
         <table className="tbl">
-          <thead><tr><th>Tým</th><th>Poř. úsek</th><th>Čas úseku</th><th>Ztráta úsek</th><th>km/h úsek</th><th>Poř. celkem</th><th>Odstup od 1.</th><th>Vs plán</th><th>Předávka</th><th>Ø km/h</th></tr></thead>
+          <thead><tr><th>Tým</th><th>Poř. úsek</th><th>Čas úseku</th><th>Ztráta úsek</th><th>min/km úsek</th><th>Poř. celkem</th><th>Odstup od 1.</th><th>Vs plán</th><th>Předávka</th><th>Ø min/km</th></tr></thead>
           <tbody>
             {list.map(({ t, m, net, plan, rank, rankAfter, look, running, clock, vsPlan }) => (
               <tr key={t.id} style={{ cursor: 'pointer' }} onClick={() => hashGo(`/team/${encodeURIComponent(t.id)}`)}>
@@ -51,18 +51,18 @@ export default function Legs({ n }) {
                 <td>{rank ?? (running ? 'běží' : '–')}</td>
                 <td className="tb" style={m != null && m === bestLeg ? { background: 'var(--gold-soft)', fontWeight: 700 } : undefined}>{m != null ? fmtDur(m) : '–'}</td>
                 <td>{m != null ? gapTxt(m - bestLeg) : '–'}</td>
-                <td>{m != null ? (L.km / (m / 60)).toFixed(1).replace('.', ',') : '–'}</td>
+                <td>{m != null ? paceTxt(m / L.km) : '–'}</td>
                 <td><b>{rankAfter ?? '–'}</b></td>
                 <td>{net != null ? gapTxt(net - bestNet) : '–'}</td>
                 <td>{net != null ? <Delta v={vsPlan} /> : '–'}</td>
                 <td className="tb">{clock != null ? fmtHHMM(clock) : '–'}</td>
-                <td>{net != null ? (kmDone / (net / 60)).toFixed(1).replace('.', ',') : '–'}</td>
+                <td>{net != null ? paceTxt(net / kmDone) : '–'}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <div className="xs muted">Ztráta úseku = proti nejrychlejšímu času na úseku. Odstup od 1. = čistý čas od vlastního startu proti nejlepšímu týmu po úseku. Vs plán = kumulativně proti plánu. Ø km/h = od startu po tento úsek.</div>
+      <div className="xs muted">Ztráta úseku = proti nejrychlejšímu času na úseku. Odstup od 1. = čistý čas od vlastního startu proti nejlepšímu týmu po úseku. Vs plán = kumulativně proti plánu. Ø min/km = od startu po tento úsek.</div>
     </>
   );
 }
