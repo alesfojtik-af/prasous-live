@@ -24,6 +24,22 @@ function LiveRow({ r, race, card }) {
   );
 }
 
+/** Přepínač ročníků pod seznamem týmů (jen když je ročníků víc). Aktuální ročník = aktivní v databázi. */
+function EditionSwitch() {
+  const { s, store } = useApp();
+  if (s.editions.length < 2) return null;
+  return (
+    <div style={{ display: 'grid', gap: 6, justifyItems: 'center' }}>
+      <div className="xs muted">Ročníky závodu</div>
+      <div className="chips" style={{ justifyContent: 'center' }}>
+        {[...s.editions].reverse().map((e) => (
+          <button key={e.id} className={`chip ${e.id === s.viewId ? 'on' : ''}`} onClick={() => store.viewEdition(e.id === s.activeId ? null : e.id)}>{e.label}{e.id === s.activeId ? ' (aktuální)' : ''}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Live() {
   const { s, now, pinned } = useApp();
   const race = s.race;
@@ -61,7 +77,7 @@ export default function Live() {
       <div className="card" style={{ padding: '4px 12px' }}>
         <div className="list">{rows.map((r) => <LiveRow key={r.team.id} r={r} race={race} />)}</div>
       </div>
-      <a className="xs muted" style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => hashGo('/archive')}>Starší ročníky</a>
+      <EditionSwitch />
     </>
   );
 }
@@ -90,7 +106,7 @@ function PreRace({ rows }) {
           ))}
         </div>
       </div>
-      <a className="xs muted" style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => hashGo('/archive')}>Starší ročníky</a>
+      <EditionSwitch />
     </>
   );
 }

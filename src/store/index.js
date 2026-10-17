@@ -14,6 +14,7 @@ const readJson = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ??
 const emptyLine = () => Array(POINTS).fill(null);
 
 // Facebooková událost ročníku, dokud ji admin nenastaví v Admin → Ostatní
+const SEED_ID = '2026';
 const DEFAULT_FB = { 2026: 'https://fb.me/e/5srJiXC2r' };
 
 export function createStore() {
@@ -59,11 +60,24 @@ export function createStore() {
   const saveOutbox = () => localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox));
   const saveSim = () => { localStorage.setItem(SIM_KEY, JSON.stringify(sim)); derive(); };
 
+  // Vestavěný ročník 2026 (výsledky jako dokončená simulace): je v aplikaci pro každého, dokud ho nepřebije ročník v databázi se stejným označením.
+  let seed = null;
+  const loadSeed = async () => (seed ||= (await import('../../data/seed/2026.json')).default);
+  const isSeedView = (vid) => vid === SEED_ID && !common.editions.some((e) => e.id === SEED_ID && !e.builtin);
+
   async function refresh() {
     try {
       common = await adapter.loadCommon();
+      if (!common.editions.some((e) => e.id === SEED_ID)) {
+        const sd = await loadSeed();
+        common = { ...common, editions: [...common.editions, { id: sd.id, label: sd.label, race_date: sd.race_date, updated_at: 'seed', builtin: true }].sort((a, b) => a.id.localeCompare(b.id)) };
+      }
       const vid = viewId();
-      if (vid) {
+      if (vid && isSeedView(vid)) {
+        const sd = await loadSeed();
+        body = { id: vid, race: sd.race, gpx: sd.gpx, updated_at: 'seed' };
+        live = { entries: Object.fromEntries(Object.entries(sd.entries).map(([t, arr]) => [t, arr.map((m) => (m == null ? null : { minutes: m, by: 'výsledky', src: 'seed' }))])), history: [] };
+      } else if (vid) {
         const meta = common.editions.find((e) => e.id === vid);
         if (!body || body.id !== vid || body.updated_at !== meta?.updated_at) { // těžká data (trasa, týmy) jen když se změnila
           const b = await adapter.loadEditionBody(vid);
@@ -159,6 +173,13 @@ export function createStore() {
       if (sim.on) { simWriteEntry(team, point, minutes, 'admin', reason); saveSim(); return; }
       await adapter.adminSetEntry({ adminPw: needAdmin(), edition: viewId(), team, point, minutes, reason });
       await refresh();
+    },
+    /** Doplní do ročníku výsledky z Excelu (skutečné časy všech týmů = dokončená simulace). Vrací počet zapsaných časů. */
+    async importResultsFromExcel() {
+      const rows = (state.race?.teams || []).flatMap((t) => (t.scenario || []).map((minutes, point) => ({ team: t.id, point, minutes })).filter((r) => r.minutes != null));
+      if (!rows.length) throw new Error('V Excelu nejsou skutečné časy.');
+      const n = await adapter.adminSetEntries({ adminPw: needAdmin(), edition: viewId(), rows, reason: 'výsledky z Excelu' });
+      await refresh(); return n;
     },
     async clearEntries() { await adapter.adminClear(needAdmin(), viewId()); outbox = outbox.filter((o) => o.edition !== viewId()); saveOutbox(); await refresh(); },
 

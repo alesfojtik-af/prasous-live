@@ -180,6 +180,24 @@ begin
   insert into pl_history(edition, team, point, old_minutes, new_minutes, by_who, reason) values (p_edition, p_team, p_point, old, p_minutes, 'admin', coalesce(p_reason, ''));
 end $$;
 
+-- Hromadný zápis časů (např. výsledky z Excelu u dokončeného ročníku). Každá změna jde do historie.
+create or replace function pl_admin_set_entries(p_admin_pw text, p_edition text, p_rows jsonb, p_reason text)
+returns int language plpgsql security definer set search_path = public, extensions as $$
+declare r jsonb; old int; n int := 0; m int;
+begin
+  if not pl_admin_ok(p_admin_pw) then raise exception 'Špatné heslo admina.'; end if;
+  for r in select * from jsonb_array_elements(p_rows) loop
+    m := (r ->> 'minutes')::int;
+    if (r ->> 'point')::int not between 0 and 9 or m not between 0 and 2879 then raise exception 'Neplatná hodnota.'; end if;
+    select minutes into old from pl_entries where edition = p_edition and team = r ->> 'team' and point = (r ->> 'point')::int;
+    insert into pl_entries(edition, team, point, minutes, by_who, src) values (p_edition, r ->> 'team', (r ->> 'point')::int, m, 'admin', 'admin')
+      on conflict (edition, team, point) do update set minutes = excluded.minutes, by_who = 'admin', at = now(), src = 'admin';
+    insert into pl_history(edition, team, point, old_minutes, new_minutes, by_who, reason) values (p_edition, r ->> 'team', (r ->> 'point')::int, old, m, 'admin', coalesce(p_reason, ''));
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+
 create or replace function pl_admin_clear_entries(p_admin_pw text, p_edition text)
 returns int language plpgsql security definer set search_path = public, extensions as $$
 declare n int;

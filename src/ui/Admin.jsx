@@ -157,14 +157,21 @@ function EditionsSection() {
         <div className="list">
           {[...s.editions].reverse().map((e) => (
             <div key={e.id} className="li" style={{ cursor: 'default', flexWrap: 'wrap' }}>
-              <div className="sp"><div className="nm">PraSouš {e.label}</div><div className="xs muted">{czDate(e.race_date)}{e.id === s.activeId ? ' · aktivní' : ''}{e.id === s.viewId ? ' · zobrazený' : ''}</div></div>
+              <div className="sp"><div className="nm">PraSouš {e.label}</div><div className="xs muted">{czDate(e.race_date)}{e.id === s.activeId ? ' · aktivní' : ''}{e.id === s.viewId ? ' · zobrazený' : ''}{e.builtin ? ' · vestavěný (výsledky)' : ''}</div></div>
               {e.id !== s.viewId && <button className="btn sm ghost" onClick={() => store.viewEdition(e.id)}>Zobrazit</button>}
-              {e.id !== s.activeId && <button className="btn sm" onClick={() => { if (window.confirm(`Aktivovat ročník ${e.label}? Diváci a kapitáni uvidí tento ročník.`)) act(() => store.setActive(e.id), 'Ročník aktivován ✓'); }}>Aktivovat</button>}
+              {e.id !== s.activeId && !e.builtin && <button className="btn sm" onClick={() => { if (window.confirm(`Aktivovat ročník ${e.label}? Diváci a kapitáni uvidí tento ročník.`)) act(() => store.setActive(e.id), 'Ročník aktivován ✓'); }}>Aktivovat</button>}
             </div>
           ))}
           {!s.editions.length && <div className="xs muted" style={{ padding: 8 }}>Zatím žádný ročník. Nahraj Excel v sekci Import.</div>}
         </div>
       </div>
+      {s.edition && !s.edition.builtin && s.race?.teams.every((t) => t.scenario) && (
+        <div className="card" style={{ display: 'grid', gap: 6 }}>
+          <b>Výsledky z Excelu</b>
+          <div className="xs muted">Excel ročníku {s.edition.label} obsahuje skutečné časy všech týmů. Zapíšou se do ročníku, jako by závod doběhl (každá změna jde do historie).</div>
+          <button className="btn sm" onClick={() => { if (window.confirm('Zapsat výsledky z Excelu do ročníku? Existující časy se přepíšou (zůstanou v historii).')) act(async () => { const n = await store.importResultsFromExcel(); toast(`Zapsáno ${n} časů`); }, 'Výsledky nahrány ✓'); }}>Nahrát výsledky z Excelu</button>
+        </div>
+      )}
       {s.edition && (
         <>
           <div className="sec">Předchozí verze ročníku {s.edition.label}</div>

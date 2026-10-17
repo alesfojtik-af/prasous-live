@@ -59,6 +59,7 @@ export function createLocalAdapter() {
       d.history.push({ id: Date.now() + Math.random(), edition, team, point, old, new: minutes, by: 'admin', reason: reason || '', at: new Date().toISOString() });
       saveDyn(d);
     },
+    async adminSetEntries({ adminPw, edition, rows, reason }) { for (const r of rows) await this.adminSetEntry({ adminPw, edition, ...r, reason }); return rows.length; },
     async adminClear(adminPw, edition) {
       needAdmin(adminPw);
       const d = dyn();

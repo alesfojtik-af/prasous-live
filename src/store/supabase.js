@@ -38,6 +38,7 @@ export function createSupabaseAdapter(url, key) {
     checkTeam: (ed, team, pw) => rpc('pl_check_team', { p_edition: ed, p_team: team, p_pw: pw }),
     submitEntry: ({ edition, team, point, minutes, by, at, pw }) => rpc('pl_submit_entry', { p_edition: edition, p_team: team, p_point: point, p_minutes: minutes, p_by: by, p_pw: pw, p_at: at }),
     adminSetEntry: ({ adminPw, edition, team, point, minutes, reason }) => rpc('pl_admin_set_entry', { p_admin_pw: adminPw, p_edition: edition, p_team: team, p_point: point, p_minutes: minutes, p_reason: reason || '' }),
+    adminSetEntries: ({ adminPw, edition, rows, reason }) => rpc('pl_admin_set_entries', { p_admin_pw: adminPw, p_edition: edition, p_rows: rows, p_reason: reason || '' }),
     adminClear: (adminPw, edition) => rpc('pl_admin_clear_entries', { p_admin_pw: adminPw, p_edition: edition }),
     adminSaveEdition: (adminPw, { id, label, date, race, xlsxB64, gpx, replace }) => rpc('pl_admin_save_edition', { p_admin_pw: adminPw, p_id: id, p_label: label, p_date: date || null, p_data: race, p_xlsx: xlsxB64, p_gpx: gpx, p_replace: !!replace }),
     adminVersions: (adminPw, edition) => rpc('pl_admin_versions', { p_admin_pw: adminPw, p_edition: edition }),
