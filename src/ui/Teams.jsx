@@ -5,6 +5,7 @@ import { buildRows } from './derive.js';
 import { TeamBadge, Delta } from './common.jsx';
 import { legMinutes, legRanking, rankingAtPoint, netAt, cumPlan } from '../domain/calc.js';
 import { fmtDur, fmtHHMM, fmtGap, paceTxt } from '../domain/time.js';
+import { recordRaceVideo } from './video.js';
 import { drawShareCard, shareCard, canvasToBlob, downloadBlob } from './share.js';
 
 export function TeamList() {
@@ -35,6 +36,7 @@ export function TeamDetail({ id }) {
   const race = s.race;
   const rows = useMemo(() => (race ? buildRows(race, s.entries, now, s.settings) : []), [race, s.entries, now, s.settings]);
   const [card, setCard] = useState(null);
+  const [vid, setVid] = useState(null); // null | 0..1 průběh nahrávání videa
   const r = rows.find((x) => x.team.id === id);
   const rankAfter = useMemo(() => (race ? Array.from({ length: 9 }, (_, i) => rankingAtPoint(race, s.entries, i + 1)) : []), [race, s.entries]);
   const bestNet = (n) => Math.min(...race.teams.map((x) => netAt(s.entries[x.id], n)).filter((v) => v != null));
@@ -53,6 +55,18 @@ export function TeamDetail({ id }) {
     teamName: t.name, emoji: r.look.emoji, color: r.look.color, rank: r.rank, netText: fmtDur(r.st.projectedNet),
     statusText: r.st.finished ? 'v cíli' : r.lp.leg ? `úsek ${r.lp.leg} z 9` : 'před startem', progress: Math.min(1, r.progress), profile: prep?.profile, year: s.settings.year,
   });
+  const raceOver = s.phase === 'after' || race.teams.every((x) => s.entries[x.id]?.[9] != null);
+  // Video celého závodu se zvýrazněným týmem a kartou týmu na konci; ukládá se jen do telefonu, nic se neposílá do databáze.
+  const makeVideo = async () => {
+    setVid(0);
+    try {
+      const endCanvas = await makeCard();
+      const { blob, ext } = await recordRaceVideo({ race, entries: s.entries, prep, settings: s.settings, focusTeam: t.id, endCanvas }, setVid);
+      downloadBlob(blob, `prasous-${s.settings.year}-${t.name.replace(/\W+/g, '_')}.${ext}`);
+      toast('Video je uložené v zařízení ✓');
+    } catch (e) { toast(e.message); }
+    setVid(null);
+  };
   const share = async () => {
     const c = await makeCard(); setCard(c.toDataURL());
     const res = await shareCard(c, `${t.name} na PraSouši ${s.settings.year}: ${r.rank}. místo, čistý čas ${fmtDur(r.st.projectedNet)} 🏃`);
@@ -98,6 +112,8 @@ export function TeamDetail({ id }) {
         })}
       </div></div>
       <button className="btn" onClick={share}>📣 Sdílet na Facebook</button>
+      {raceOver && <button className="btn dark" disabled={vid != null} onClick={makeVideo}>{vid != null ? `⏺ Nahrávám… ${Math.round(vid * 100)} %` : '🎥 Video našeho závodu (30–60 s)'}</button>}
+      {vid != null && <div className="xs muted">Video se nahrává v reálném čase, nech stránku otevřenou. Uloží se jen do tohoto zařízení.</div>}
       {card && <img className="sharecard" src={card} alt="Karta ke sdílení" />}
     </>
   );

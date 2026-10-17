@@ -82,3 +82,30 @@ export function elevationProfile(track, n = 160) {
     return { km: p.km, ele: w.reduce((a, b) => a + b.ele, 0) / w.length };
   });
 }
+
+/**
+ * Zjednoduší trasu (Douglas–Peucker) na body vzdálené od původní čáry nejvýš tolM metrů a vrátí nový GPX text.
+ * Proč: každý divák si trasu stahuje; 3 m je na mapě nepostřehnutelné a data klesnou na zlomek.
+ */
+export function simplifyGpx(text, tolM = 3) {
+  const pts = parseGpx(text);
+  const lat0 = rad(pts[0].lat);
+  const xy = pts.map((p) => [rad(p.lon) * Math.cos(lat0) * R, rad(p.lat) * R]);
+  const keep = new Uint8Array(pts.length);
+  keep[0] = keep[pts.length - 1] = 1;
+  const stack = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    const [ax, ay] = xy[a], [bx, by] = xy[b];
+    const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
+    let worst = -1, wd = tolM;
+    for (let i = a + 1; i < b; i++) {
+      const t = len2 ? Math.max(0, Math.min(1, ((xy[i][0] - ax) * dx + (xy[i][1] - ay) * dy) / len2)) : 0;
+      const d = Math.hypot(xy[i][0] - (ax + t * dx), xy[i][1] - (ay + t * dy));
+      if (d > wd) { wd = d; worst = i; }
+    }
+    if (worst > 0) { keep[worst] = 1; stack.push([a, worst], [worst, b]); }
+  }
+  const body = pts.filter((_, i) => keep[i]).map((p) => `<trkpt lat="${p.lat.toFixed(5)}" lon="${p.lon.toFixed(5)}">${p.ele != null ? `<ele>${p.ele.toFixed(1)}</ele>` : ''}</trkpt>`).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="PraSous Live"><trk><trkseg>${body}</trkseg></trk></gpx>`;
+}

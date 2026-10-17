@@ -1,11 +1,9 @@
 /* Administrace: import ročníku, správa ročníků a verzí, opravy časů, týmy a hesla, simulace, export. */
 import { useEffect, useState } from 'react';
-import xlsxUrl from '../../data/2026/prasous-2026.xlsx?url';
-import gpxUrl from '../../data/2026/trasa-2026.gpx?url';
 import { useApp, usePrepared, hashGo, lookOf, PALETTE_COLORS } from './ctx.jsx';
 import { recordRaceVideo } from './video.js';
 import { parseWorkbook, exportWorkbook } from '../domain/excel.js';
-import { parseGpx, locateHandovers } from '../domain/gpx.js';
+import { parseGpx, locateHandovers, simplifyGpx } from '../domain/gpx.js';
 import { validateEntry, fmtHHMM, parseHHMM, pointLabel, pointShort } from '../domain/time.js';
 import { downloadBlob } from './share.js';
 
@@ -53,16 +51,18 @@ function ImportSection() {
     const parsed = xlsxBuf ? await parseWorkbook(xlsxBuf) : { legs: s.race?.legs, teams: s.race?.teams, report: { errors: [], warnings: [], info: [] } };
     const race = { legs: parsed.legs, teams: parsed.teams };
     const report = parsed.report;
-    const text = gpxText ?? s.gpx;
+    let text = gpxText ?? s.gpx;
     let gpxInfo = null;
     if (text && race.legs) {
       try {
         const track = parseGpx(text);
+        const before = text.length;
+        text = simplifyGpx(text); // diváci stahují jen zjednodušenou trasu (3 m přesnost)
         const pts = [race.legs[0].gpsStart, ...race.legs.map((l) => l.gpsEnd)];
         if (pts.every(Boolean)) {
           const { idx, distM } = locateHandovers(track, pts);
           const far = distM.filter((d) => d > 25).length;
-          gpxInfo = `GPX ${track[track.length - 1].km.toFixed(1)} km · ${far ? `${far} bodů dál než 25 m od trasy` : `všech ${pts.length} bodů leží na trase (do ${Math.max(...distM).toFixed(0)} m)`}`;
+          gpxInfo = `GPX ${track[track.length - 1].km.toFixed(1)} km (zjednodušeno ${Math.round(before / 1024)} → ${Math.round(text.length / 1024)} kB) · ${far ? `${far} bodů dál než 25 m od trasy` : `všech ${pts.length} bodů leží na trase (do ${Math.max(...distM).toFixed(0)} m)`}`;
           if (far) report.warnings.push('Některé souřadnice předávek neleží na GPX trase.');
           race.legs.forEach((l, i) => {
             const g = track[idx[i + 1]].km - track[idx[i]].km;
@@ -89,12 +89,15 @@ function ImportSection() {
     } catch (err) { toast(`Soubor se nepodařilo přečíst: ${err.message}`); }
     setBusy(false); e.target.value = '';
   };
-  const loadDemo = async () => {
+  // Testovací data jsou jen ve vývojové a testovací sestavě (VITE_TESTDATA=1), do veřejné aplikace se nedostanou.
+  const loadDemo = import.meta.env.VITE_TESTDATA ? async () => {
     setBusy(true);
-    try { await analyse(await (await fetch(xlsxUrl)).arrayBuffer(), await (await fetch(gpxUrl)).text(), { label: '2026', date: '2026-04-25' }); }
-    catch (err) { toast(`Načtení testovacích dat selhalo: ${err.message}`); }
+    try {
+      const [{ default: xlsxUrl }, { default: gpxUrl }] = await Promise.all([import('../../data/2026/prasous-2026.xlsx?url'), import('../../data/2026/trasa-2026.gpx?url')]);
+      await analyse(await (await fetch(xlsxUrl)).arrayBuffer(), await (await fetch(gpxUrl)).text(), { label: '2026', date: '2026-04-25' });
+    } catch (err) { toast(`Načtení testovacích dat selhalo: ${err.message}`); }
     setBusy(false);
-  };
+  } : null;
   const id = meta.label.trim();
   const exists = s.editions.some((e) => e.id === id);
   const gpxOnly = draft && !draft.xlsxBuf;
@@ -116,7 +119,7 @@ function ImportSection() {
         <h3>Soubory závodu</h3>
         <div className="sm muted">Zobrazený ročník: {s.edition ? `${s.edition.label} (${s.race?.teams.length ?? 0} týmů${s.gpx ? ', GPX trasa' : ', bez GPX'})` : 'žádný'}.</div>
         <label className="btn dark" style={{ cursor: 'pointer' }}>Vybrat Excel a/nebo GPX<input type="file" accept=".xlsx,.gpx" multiple hidden onChange={onFiles} /></label>
-        <button className="btn ghost" disabled={busy} onClick={loadDemo}>Načíst testovací závod 2026</button>
+        {loadDemo && <button className="btn ghost" disabled={busy} onClick={loadDemo}>Načíst testovací závod 2026</button>}
         <div className="xs muted">Nový Excel se uloží jako nový ročník. Starší ročníky a jejich výsledky zůstávají uložené. Pouze GPX nahraješ do zobrazeného ročníku (stará verze zůstane k obnovení).</div>
       </div>
       {draft && (
@@ -325,6 +328,11 @@ function OtherSection() {
     } catch (e) { toast(e.message); }
     setVid({ busy: false, p: 0 });
   };
+  const [test, setTest] = useState(null);
+  const runTest = async () => { setTest('běží'); try { setTest(await store.selfTest()); } catch (e) { setTest([{ name: 'Test', ok: false, detail: e.message }]); } };
+  const [fb, setFb] = useState(s.settings.fb || '');
+  useEffect(() => setFb(s.settings.fb || ''), [s.settings.fb]);
+  const saveFb = async () => { try { await store.setFbEvent(fb.trim()); toast('Odkaz uložen ✓'); } catch (e) { toast(e.message); } };
   const [pw, setPw] = useState({ old: '', next: '' });
   const wipe = async () => {
     if (!race) return;
@@ -341,6 +349,17 @@ function OtherSection() {
         <button className="btn dark" disabled={!all || vid.busy} onClick={makeVideo}>{vid.busy ? `⏺ Nahrávám… ${Math.round(vid.p * 100)} %` : '🎥 Stáhnout video jako soubor'}</button>
         {vid.busy && <div className="xs muted">Video (30–60 s) se nahrává v reálném čase. Nech tuto stránku otevřenou.</div>}
         <div className="xs muted">{all ? 'Všechny týmy jsou v cíli: otevře se přehrání celého závodu a stažení výsledkových karet týmů.' : 'Tlačítko se odemkne, až všechny týmy zapíšou cíl.'}</div>
+      </div>
+      <div className="card" style={{ display: 'grid', gap: 8 }}>
+        <h3>Facebooková událost</h3>
+        <div className="field"><label>Odkaz na událost (diváci uvidí „Komentujte závod na Facebooku“)</label><input value={fb} onChange={(e) => setFb(e.target.value)} placeholder="https://www.facebook.com/events/…" /></div>
+        <button className="btn ghost sm" onClick={saveFb}>Uložit odkaz</button>
+      </div>
+      <div className="card" style={{ display: 'grid', gap: 8 }}>
+        <h3>Test spojení a oprávnění</h3>
+        <button className="btn ghost sm" onClick={runTest} disabled={test === 'běží'}>{test === 'běží' ? 'Zkouším…' : 'Spustit test'}</button>
+        {Array.isArray(test) && test.map((t) => <div key={t.name} className={t.ok ? 'okmsg' : 'errmsg'}>{t.ok ? '✓' : '✕'} {t.name}{t.detail ? ` – ${t.detail}` : ''}</div>)}
+        <div className="xs muted">Zkontroluje čtení, zákaz přímého zápisu do databáze, neveřejnost Excelu a ověřování hesel. Nic nezapisuje.</div>
       </div>
       <div className="card" style={{ display: 'grid', gap: 8 }}>
         <h3>Heslo admina</h3>

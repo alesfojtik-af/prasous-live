@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host",
     "test": "vitest run",
-    "e2e": "node tests/e2e/smoke.cjs"
+    "e2e": "VITE_TESTDATA=1 vite build && (vite preview --port 4173 & sleep 3; node tests/e2e/smoke.cjs && node tests/e2e/captain.cjs; r=$?; kill %1; exit $r)"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

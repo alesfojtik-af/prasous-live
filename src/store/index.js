@@ -46,7 +46,7 @@ export function createStore() {
       editions: common.editions, activeId: activeId(), viewId: vid, edition, isArchive: !!vid && vid !== activeId(),
       race, gpx: body?.id === vid ? body.gpx : null,
       entries, meta, history: sim.on ? sim.history || [] : live.history,
-      settings: { year: edition?.label ?? '', date: edition?.race_date ?? null, looks: common.settings[`looks:${vid}`] || {}, sim: sim.on ? sim : { on: false } },
+      settings: { year: edition?.label ?? '', date: edition?.race_date ?? null, fb: common.settings[`fb:${vid}`] || '', looks: common.settings[`looks:${vid}`] || {}, sim: sim.on ? sim : { on: false } },
       phase: racePhase(edition?.race_date, new Date(), !!sim.on),
       outbox: outbox.filter((o) => !vid || o.edition === vid), online: !forceOffline && navigator.onLine !== false, forceOffline,
       ...extra,
@@ -66,7 +66,7 @@ export function createStore() {
           const b = await adapter.loadEditionBody(vid);
           body = b ? { id: vid, ...b } : null;
         }
-        live = await adapter.loadEntries(vid);
+        live = await adapter.loadEntries(vid, creds.role === 'admin');
       } else { body = null; live = { entries: {}, history: [] }; }
       derive({ error: null });
     } catch (e) { derive({ error: `Databáze nedostupná: ${e.message}` }); }
@@ -120,10 +120,11 @@ export function createStore() {
       await refresh();
       adapter.subscribe(refresh);
       window.addEventListener('online', flush);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); }); // po návratu do aplikace hned čerstvá data
       setInterval(flush, 10000);
       flush();
     },
-    setCreds(c) { creds = c; flush(); },
+    setCreds(c) { const wasAdmin = creds.role === 'admin'; creds = c; flush(); if (c.role === 'admin' && !wasAdmin) refresh(); }, // admin potřebuje i historii změn
 
     // ---- přihlášení (hesla ověřuje server) ----
     checkAdmin: (pw) => adapter.checkAdmin(pw),
@@ -135,7 +136,8 @@ export function createStore() {
     async setActive(id) { await adapter.adminSetActive(needAdmin(), id); viewOverride = null; sessionStorage.removeItem(VIEW_KEY); await refresh(); },
     versions: (id) => adapter.adminVersions(needAdmin(), id),
     async restoreVersion(vid) { await adapter.adminRestoreVersion(needAdmin(), vid); await refresh(); },
-    getXlsx: () => adapter.loadXlsx(viewId()),
+    getXlsx: () => adapter.loadXlsx(needAdmin(), viewId()),
+    selfTest: () => adapter.selfTest(needAdmin()),
 
     // ---- zápisy ----
     /** Zápis předávky kapitánem: nejdřív do telefonu (fronta), pak odeslání na server. V simulaci jen v tomto zařízení. */
@@ -159,6 +161,7 @@ export function createStore() {
 
     // ---- nastavení ročníku ----
     async setLooks(looks) { await adapter.adminSetSetting(needAdmin(), `looks:${viewId()}`, looks); await refresh(); },
+    async setFbEvent(url) { await adapter.adminSetSetting(needAdmin(), `fb:${viewId()}`, url); await refresh(); },
     setTeamPw: (team, pw) => adapter.adminSetTeamPw(needAdmin(), viewId(), team, pw),
     changeAdminPw: (oldPw, newPw) => adapter.adminChangePw(oldPw, newPw),
 

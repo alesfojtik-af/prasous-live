@@ -22,11 +22,12 @@ export function createSupabaseAdapter(url, key) {
       const r = must(await sb.from('pl_editions').select('data,gpx,updated_at').eq('id', id).maybeSingle());
       return r ? { race: r.data, gpx: r.gpx, updated_at: r.updated_at } : null;
     },
-    async loadXlsx(id) { return must(await sb.from('pl_editions').select('xlsx_b64').eq('id', id).maybeSingle())?.xlsx_b64 ?? null; },
-    async loadEntries(id) {
+    loadXlsx: (adminPw, id) => rpc('pl_admin_get_xlsx', { p_admin_pw: adminPw, p_edition: id }),
+    /** Historii změn čte jen admin (diváci ji nepotřebují, šetří se tím data při každé obnově). */
+    async loadEntries(id, withHistory = false) {
       const [entries, history] = await Promise.all([
-        sb.from('pl_entries').select('*').eq('edition', id).then(must),
-        sb.from('pl_history').select('*').eq('edition', id).order('id', { ascending: false }).limit(300).then(must),
+        sb.from('pl_entries').select('team,point,minutes,by_who,at,src').eq('edition', id).then(must),
+        withHistory ? sb.from('pl_history').select('*').eq('edition', id).order('id', { ascending: false }).limit(300).then(must) : [],
       ]);
       const ent = {};
       for (const e of entries) (ent[e.team] ||= [])[e.point] = { minutes: e.minutes, by: e.by_who, at: e.at, src: e.src };
@@ -45,6 +46,20 @@ export function createSupabaseAdapter(url, key) {
     adminSetSetting: (adminPw, key, value) => rpc('pl_admin_set_setting', { p_admin_pw: adminPw, p_key: key, p_value: value }),
     adminSetTeamPw: (adminPw, edition, team, pw) => rpc('pl_admin_set_team_pw', { p_admin_pw: adminPw, p_edition: edition, p_team: team, p_new: pw || '' }),
     adminChangePw: (oldPw, newPw) => rpc('pl_admin_change_pw', { p_old: oldPw, p_new: newPw }),
+
+    /** Zkouška spojení a oprávnění pro admina (tlačítko v Admin → Ostatní). Vrací [{ name, ok, detail }]. */
+    async selfTest(adminPw) {
+      const out = [];
+      const step = async (name, fn) => { try { const r = await fn(); out.push({ name, ok: !!r.ok, detail: r.detail || '' }); } catch (e) { out.push({ name, ok: false, detail: e.message }); } };
+      await step('Čtení ročníků', async () => { const r = must(await sb.from('pl_editions').select('id').limit(5)); return { ok: true, detail: `${r.length} ročníků` }; });
+      await step('Čtení zápisů a nastavení', async () => { must(await sb.from('pl_entries').select('team').limit(1)); must(await sb.from('pl_settings').select('key').limit(1)); return { ok: true }; });
+      await step('Zápis přímo do tabulky je zakázán', async () => { const r = await sb.from('pl_entries').insert({ edition: '__test', team: 'x', point: 0, minutes: 1 }); return { ok: !!r.error, detail: r.error ? 'odmítnuto' : 'POZOR: zápis prošel' }; });
+      await step('Tabulka souborů není veřejně čitelná', async () => { const r = await sb.from('pl_edition_files').select('xlsx_b64').limit(1); return { ok: !r.error && !(r.data || []).length, detail: (r.data || []).length ? 'POZOR: čitelné' : 'prázdné/odmítnuto' }; });
+      await step('Špatné heslo admina je odmítnuto', async () => ({ ok: (await rpc('pl_check_admin', { p_pw: '__spatne__' })) === false }));
+      await step('Správné heslo admina projde', async () => ({ ok: (await rpc('pl_check_admin', { p_pw: adminPw })) === true }));
+      await step('Špatné heslo kapitána je odmítnuto', async () => ({ ok: (await rpc('pl_submit_entry', { p_edition: '__test', p_team: 'x', p_point: 0, p_minutes: 1, p_by: 'test', p_pw: '__spatne__', p_at: new Date().toISOString() })) === 'error: špatné heslo' }));
+      return out;
+    },
 
     subscribe(cb) {
       let t;

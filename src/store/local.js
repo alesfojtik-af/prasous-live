@@ -27,8 +27,10 @@ export function createLocalAdapter() {
       };
     },
     async loadEditionBody(id) { const x = eds().editions[id]; return x ? { race: x.data, gpx: x.gpx, updated_at: x.updated_at } : null; },
-    async loadXlsx(id) { return eds().editions[id]?.xlsx_b64 ?? null; },
+    async loadXlsx(_adminPw, id) { return eds().editions[id]?.xlsx_b64 ?? null; },
     async loadEntries(id) { const d = dyn(); return { entries: d.entries[id] || {}, history: d.history.filter((h) => h.edition === id) }; },
+
+    async selfTest() { return [{ name: 'Lokální režim', ok: true, detail: 'data jsou jen v tomto prohlížeči, databáze se netestuje' }]; },
 
     async checkAdmin(pw) { return pw === ADMIN_PW; },
     async checkTeam(ed, team, pw) { const own = dyn().teamPw[ed]?.[team]; return own != null ? pw === own : norm(pw) === norm(teamName(ed, team)); },

@@ -88,6 +88,8 @@ export default function App() {
         {s.banner && <div className="banner">{s.banner}</div>}
         {sim && <div className="banner">Simulace běží jen na tomto zařízení, do databáze se nic neukládá. Zastavíš ji v Admin → Simulace.</div>}
         {s.isArchive && <div className="banner">Prohlížíš starší ročník {s.settings.year}. <a style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => { store.viewEdition(null); hashGo('/live'); }}>Zpět na aktuální</a></div>}
+        {s.settings.fb && ['live', 'map', 'legs', 'teams', 'team', 'finale', undefined, ''].includes(page) && (
+          <a className="fbbar" href={s.settings.fb} target="_blank" rel="noopener noreferrer">💬 Komentujte závod na Facebooku</a>)}
         <main className={fill ? 'fill' : ''}>{body}</main>
         <nav className="tabs">{tabs.map(([k, label, icon]) => <a key={k} className={active === k ? 'on' : ''} onClick={() => hashGo(`/${k}`)} style={{ cursor: 'pointer' }}>{icon}{label}</a>)}</nav>
         {msg && <div className="toast">{msg}</div>}

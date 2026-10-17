@@ -19,7 +19,7 @@ export function raceSpan(race, entries) {
   return all.length ? [Math.min(...all), Math.max(...all)] : null;
 }
 
-function drawFrame(g, logo, { race, entries, prep, settings, T, final }) {
+function drawFrame(g, logo, { race, entries, prep, settings, T, final, focusTeam, endCanvas }) {
   const total = totalKm(race);
   g.fillStyle = '#F5F4F1'; g.fillRect(0, 0, W, H);
   g.fillStyle = '#fff'; g.fillRect(0, 0, W, 170);
@@ -42,20 +42,25 @@ function drawFrame(g, logo, { race, entries, prep, settings, T, final }) {
       const eleAt = (km) => { const q = prof.find((p) => p.km >= km) || prof[prof.length - 1]; return q.ele; };
       [...rows].reverse().forEach((r) => {
         const km = (r.km / total) * pt;
-        g.fillStyle = r.look.color; g.beginPath(); g.arc(px(km), py(eleAt(km)) - 10, 14, 0, Math.PI * 2); g.fill();
-        g.strokeStyle = '#fff'; g.lineWidth = 3; g.stroke();
+        const mine = r.team.id === focusTeam, rad = mine ? 22 : focusTeam ? 10 : 14;
+        g.fillStyle = r.look.color; g.beginPath(); g.arc(px(km), py(eleAt(km)) - 10, rad, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = mine ? '#FFC23D' : '#fff'; g.lineWidth = mine ? 6 : 3; g.stroke();
       });
     }
     const rowH = Math.min(86, 640 / Math.max(1, rows.length));
     rows.forEach((r, i) => {
       const y = 630 + i * rowH;
-      g.fillStyle = '#fff'; g.beginPath(); g.roundRect(30, y, W - 60, rowH - 10, 14); g.fill();
+      const mine = r.team.id === focusTeam;
+      g.fillStyle = mine ? '#FFF3D1' : '#fff'; g.beginPath(); g.roundRect(30, y, W - 60, rowH - 10, 14); g.fill();
+      if (mine) { g.strokeStyle = '#FFC23D'; g.lineWidth = 4; g.stroke(); }
       g.fillStyle = '#CC0000'; g.font = '800 34px Poppins, system-ui, sans-serif'; g.fillText(`${r.rank}.`, 46, y + rowH / 2 + 8);
       g.font = '34px system-ui, sans-serif'; g.fillStyle = '#000'; g.fillText(r.look.emoji, 110, y + rowH / 2 + 10);
       g.fillStyle = '#141414'; g.font = '700 28px Figtree, system-ui, sans-serif'; g.fillText(r.team.name.slice(0, 22), 160, y + rowH / 2 - 2);
       g.fillStyle = '#E4E0DB'; g.beginPath(); g.roundRect(160, y + rowH / 2 + 6, W - 260, 12, 6); g.fill();
       g.fillStyle = r.look.color; g.beginPath(); g.roundRect(160, y + rowH / 2 + 6, Math.max(12, (W - 260) * Math.min(1, r.progress)), 12, 6); g.fill();
     });
+  } else if (endCanvas) {
+    g.drawImage(endCanvas, 0, 190, W, W * (endCanvas.height / endCanvas.width)); // karta týmu
   } else {
     g.fillStyle = '#141414'; g.font = '800 54px Poppins, system-ui, sans-serif'; g.fillText('Konečné výsledky', 30, 270);
     const rowH = Math.min(100, 840 / Math.max(1, rows.length));
@@ -73,7 +78,7 @@ function drawFrame(g, logo, { race, entries, prep, settings, T, final }) {
 /**
  * Nahraje video celého závodu a vrátí Blob (+ příponu). onProgress(0..1). Obsah je jen kreslený z dat, žádné mapové dlaždice.
  */
-export async function recordRaceVideo({ race, entries, prep, settings }, onProgress = () => {}) {
+export async function recordRaceVideo({ race, entries, prep, settings, focusTeam = null, endCanvas = null }, onProgress = () => {}) {
   const span = raceSpan(race, entries);
   if (!span) throw new Error('Nejsou žádné zapsané časy.');
   if (!window.MediaRecorder) throw new Error('Tento prohlížeč neumí nahrávat video. Použij Chrome nebo Edge na počítači.');
@@ -95,7 +100,7 @@ export async function recordRaceVideo({ race, entries, prep, settings }, onProgr
       const el = (performance.now() - started) / 1000;
       if (el >= totalSec) return resolve();
       const final = el >= playSec;
-      drawFrame(g, logo, { race, entries, prep, settings, T: final ? t1 : t0 + (el / secPerHour) * 60, final });
+      drawFrame(g, logo, { race, entries, prep, settings, T: final ? t1 : t0 + (el / secPerHour) * 60, final, focusTeam, endCanvas });
       onProgress(el / totalSec);
       requestAnimationFrame(tick);
     };

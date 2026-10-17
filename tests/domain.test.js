@@ -142,3 +142,11 @@ describe('přechod přes půlnoc', () => {
     expect(validateEntry('4:00', base).ok).toBe(false);   // 4 h 20 > 3× plán
   });
 });
+
+import { unwrapDays } from '../src/domain/excel.js';
+describe('Excel po půlnoci', () => {
+  it('hodiny po půlnoci se rozbalí na další den', () => {
+    expect(unwrapDays([22 * 60, 23 * 60 + 30, 40, 100])).toEqual([1320, 1410, 1480, 1540]);
+    expect(unwrapDays([300, 400, 500])).toEqual([300, 400, 500]);
+  });
+});

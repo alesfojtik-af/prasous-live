@@ -57,6 +57,13 @@ alter table pl_team_pw enable row level security;
 alter table pl_admin enable row level security;
 alter table pl_attempts enable row level security;
 
+-- Původní Excel obsahuje osobní údaje (e-maily, ročníky narození), proto je v tabulce bez čtecí politiky:
+-- čte ho jen admin přes funkci pl_admin_get_xlsx. Starý sloupec pl_editions.xlsx_b64 se po zkopírování vyprázdní.
+create table if not exists pl_edition_files (edition text primary key, xlsx_b64 text);
+alter table pl_edition_files enable row level security;
+insert into pl_edition_files(edition, xlsx_b64) select id, xlsx_b64 from pl_editions where xlsx_b64 is not null on conflict (edition) do nothing;
+update pl_editions set xlsx_b64 = null where xlsx_b64 is not null and exists (select 1 from pl_edition_files f where f.edition = pl_editions.id);
+
 drop policy if exists pl_read on pl_editions;  create policy pl_read on pl_editions for select to anon, authenticated using (true);
 drop policy if exists pl_read on pl_entries;   create policy pl_read on pl_entries for select to anon, authenticated using (true);
 drop policy if exists pl_read on pl_history;   create policy pl_read on pl_history for select to anon, authenticated using (true);
@@ -116,13 +123,14 @@ language sql security definer set search_path = public, extensions as $$ select 
 -- čas po předchozím bodě. Vrací 'ok' | 'conflict' | 'error: důvod'.
 create or replace function pl_submit_entry(p_edition text, p_team text, p_point int, p_minutes int, p_by text, p_pw text, p_at timestamptz default now())
 returns text language plpgsql security definer set search_path = public, extensions as $$
-declare act text; d date; cur pl_entries; last_pt int; prev_min int;
+declare act text; d date; cur pl_entries; last_pt int; prev_min int; now_min numeric; plan_min numeric;
 begin
   if not pl_team_ok(p_edition, p_team, p_pw) then return 'error: špatné heslo'; end if;
   select value #>> '{}' into act from pl_settings where key = 'active_edition';
   if act is distinct from p_edition then return 'error: ročník není aktivní'; end if;
   select race_date into d from pl_editions where id = p_edition;
-  if d is not null and not ((now() at time zone 'Europe/Prague')::date between d and d + 1) then
+  -- zápis je možný v den závodu a do 6:00 dalšího dne (stejně jako v aplikaci)
+  if d is not null and not ((now() at time zone 'Europe/Prague') >= d::timestamp and (now() at time zone 'Europe/Prague') < d::timestamp + interval '1 day 6 hours') then
     return 'error: zápis je možný jen v den závodu';
   end if;
   if p_point is null or p_point not between 0 and 9 or p_minutes is null or p_minutes not between 0 and 2879 then
@@ -138,6 +146,17 @@ begin
   if p_point > 0 then
     select minutes into prev_min from pl_entries where edition = p_edition and team = p_team and point = p_point - 1;
     if p_minutes <= prev_min then return 'error: čas musí být po předchozím bodě'; end if;
+    -- délka úseku musí být rámcově jako v plánu (0,3× až 3×), jinak jde o překlep
+    select (t -> 'legs' -> (p_point - 1) ->> 'planMin')::numeric into plan_min
+      from pl_editions e, jsonb_array_elements(e.data -> 'teams') t where e.id = p_edition and t ->> 'id' = p_team limit 1;
+    if plan_min is not null and plan_min > 0 and (p_minutes - prev_min < plan_min * 0.3 or p_minutes - prev_min > plan_min * 3) then
+      return 'error: délka úseku je mimo rozumný rozsah proti plánu';
+    end if;
+  end if;
+  -- čas nesmí být v budoucnosti (minuty od půlnoci dne závodu, pražský čas, tolerance 3 min)
+  if d is not null then
+    now_min := extract(epoch from ((now() at time zone 'Europe/Prague') - d::timestamp)) / 60;
+    if p_minutes > now_min + 3 then return 'error: čas je v budoucnosti'; end if;
   end if;
   insert into pl_entries(edition, team, point, minutes, by_who, at, src) values (p_edition, p_team, p_point, p_minutes, p_by, p_at, 'captain');
   insert into pl_history(edition, team, point, old_minutes, new_minutes, by_who, reason, at) values (p_edition, p_team, p_point, null, p_minutes, p_by, '', p_at);
@@ -181,13 +200,21 @@ begin
   if exists (select 1 from pl_editions where id = p_id) then
     if not p_replace then return 'exists'; end if;
     insert into pl_edition_versions(edition, label, race_date, data, xlsx_b64, gpx)
-      select id, label, race_date, data, xlsx_b64, gpx from pl_editions where id = p_id;  -- stará verze zůstane pro obnovení
-    update pl_editions set label = p_label, race_date = p_date, data = p_data, xlsx_b64 = p_xlsx, gpx = p_gpx, updated_at = now() where id = p_id;
+      select e.id, e.label, e.race_date, e.data, f.xlsx_b64, e.gpx from pl_editions e left join pl_edition_files f on f.edition = e.id where e.id = p_id;  -- stará verze zůstane pro obnovení
+    update pl_editions set label = p_label, race_date = p_date, data = p_data, gpx = p_gpx, updated_at = now() where id = p_id;
   else
-    insert into pl_editions(id, label, race_date, data, xlsx_b64, gpx) values (p_id, p_label, p_date, p_data, p_xlsx, p_gpx);
+    insert into pl_editions(id, label, race_date, data, gpx) values (p_id, p_label, p_date, p_data, p_gpx);
   end if;
+  insert into pl_edition_files(edition, xlsx_b64) values (p_id, p_xlsx) on conflict (edition) do update set xlsx_b64 = excluded.xlsx_b64;
   insert into pl_settings(key, value) values ('active_edition', to_jsonb(p_id)) on conflict (key) do nothing;
   return 'ok';
+end $$;
+
+create or replace function pl_admin_get_xlsx(p_admin_pw text, p_edition text)
+returns text language plpgsql security definer set search_path = public, extensions as $$
+begin
+  if not pl_admin_ok(p_admin_pw) then raise exception 'Špatné heslo admina.'; end if;
+  return (select xlsx_b64 from pl_edition_files where edition = p_edition);
 end $$;
 
 create or replace function pl_admin_versions(p_admin_pw text, p_edition text)
@@ -206,8 +233,9 @@ begin
   select * into v from pl_edition_versions where id = p_version_id;
   if not found then raise exception 'Verze neexistuje.'; end if;
   insert into pl_edition_versions(edition, label, race_date, data, xlsx_b64, gpx)
-    select id, label, race_date, data, xlsx_b64, gpx from pl_editions where id = v.edition;  -- i současný stav se uloží
-  update pl_editions set label = v.label, race_date = v.race_date, data = v.data, xlsx_b64 = v.xlsx_b64, gpx = v.gpx, updated_at = now() where id = v.edition;
+    select e.id, e.label, e.race_date, e.data, f.xlsx_b64, e.gpx from pl_editions e left join pl_edition_files f on f.edition = e.id where e.id = v.edition;  -- i současný stav se uloží
+  update pl_editions set label = v.label, race_date = v.race_date, data = v.data, gpx = v.gpx, updated_at = now() where id = v.edition;
+  insert into pl_edition_files(edition, xlsx_b64) values (v.edition, v.xlsx_b64) on conflict (edition) do update set xlsx_b64 = excluded.xlsx_b64;
 end $$;
 
 create or replace function pl_admin_set_active(p_admin_pw text, p_edition text)
@@ -222,7 +250,7 @@ create or replace function pl_admin_set_setting(p_admin_pw text, p_key text, p_v
 returns void language plpgsql security definer set search_path = public, extensions as $$
 begin
   if not pl_admin_ok(p_admin_pw) then raise exception 'Špatné heslo admina.'; end if;
-  if p_key not like 'looks:%' then raise exception 'Nepovolené nastavení.'; end if;
+  if p_key not like 'looks:%' and p_key not like 'fb:%' then raise exception 'Nepovolené nastavení.'; end if;
   insert into pl_settings(key, value) values (p_key, p_value) on conflict (key) do update set value = excluded.value;
 end $$;
 

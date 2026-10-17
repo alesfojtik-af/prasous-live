@@ -1,5 +1,6 @@
 /* Import a export Excelu ve formátu 8aD (první list = trasa, list na tým). Sloupce se hledají podle textu hlavičky; export zachová vzorce. */
-import ExcelJS from 'exceljs';
+// exceljs je velký a potřebuje ho jen admin (import/export), proto se načítá až při použití
+const loadExcelJS = async () => (await import('exceljs')).default;
 import { parseGps } from './gpx.js';
 
 /* Import a export Excelu PraSouš (formát podle listu 8aD, viz docs/datovy-model.md). */
@@ -27,6 +28,12 @@ function clock(cell) {
   if (v instanceof Date) return v.getUTCHours() * 60 + v.getUTCMinutes();
   if (typeof v === 'number' && v >= 0 && v < 1) return Math.round(v * 1440);
   return null;
+}
+
+/** Hodiny v Excelu nemají den: čas menší než předchozí = po půlnoci, přičte se 1440 (opakovaně pro další přechody). */
+export function unwrapDays(clocks) {
+  let day = 0;
+  return clocks.map((v, i) => { if (i && v < clocks[i - 1]) day++; return v + 1440 * day; });
 }
 
 function findRow(ws, col, text, from = 1, to = 60) {
@@ -115,8 +122,7 @@ function parseTeam(ws, report) {
   const ends = legs.map((l) => (num(ws.getCell(l.row, cAct)) != null ? clock(ws.getCell(l.row, cActEnd)) : null));
   const raw = start != null && ends.every((e) => e != null) ? [start, ...ends] : null;
   // hodiny v Excelu nemají den: čas menší než předchozí = po půlnoci
-  let day = 0;
-  const scenario = raw && raw.map((v, i) => { if (i && v + 1440 * day < raw[i - 1] + 1440 * day) day++; return v + 1440 * day; });
+  const scenario = raw && unwrapDays(raw);
   return {
     id: ws.name, name, sheet: ws.name, planStart, legs: legs.map(({ row, ...l }) => l),
     layout: helperLayout ? 'helper' : 'standard', scenario,
@@ -125,6 +131,7 @@ function parseTeam(ws, report) {
 }
 
 export async function parseWorkbook(buffer) {
+  const ExcelJS = await loadExcelJS();
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer);
   const report = { errors: [], warnings: [], info: [] };
@@ -149,6 +156,7 @@ export async function parseWorkbook(buffer) {
  * entries: { teamId: [start, p1..p9] } v minutách od půlnoci.
  */
 export async function exportWorkbook(buffer, race, entries) {
+  const ExcelJS = await loadExcelJS();
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer);
   for (const t of race.teams) {
