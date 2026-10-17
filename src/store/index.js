@@ -84,6 +84,10 @@ export function createStore() {
           body = b ? { id: vid, ...b } : null;
         }
         live = await adapter.loadEntries(vid, creds.role === 'admin');
+        if (vid === SEED_ID && !Object.keys(live.entries).length) { // ročník 2026 v databázi bez výsledků: ukážou se vestavěné výsledky
+          const sd = await loadSeed();
+          live = { ...live, entries: Object.fromEntries(Object.entries(sd.entries).map(([t, arr]) => [t, arr.map((m) => (m == null ? null : { minutes: m, by: 'výsledky', src: 'seed' }))])) };
+        }
       } else { body = null; live = { entries: {}, history: [] }; }
       derive({ error: null });
     } catch (e) { derive({ error: `Databáze nedostupná: ${e.message}` }); }

@@ -53,10 +53,14 @@ export default function Live() {
   const starts = rows.filter((r) => r.st.started).map((r) => r.ent[0]);
   const raceStart = starts.length ? Math.min(...starts) : null;
   const mine = pinned && rows.find((r) => r.team.id === pinned);
-  const over = s.phase === 'after' || rows.every((r) => r.st.finished);
+  const hasData = rows.some((r) => r.st.started);
+  const over = hasData && (s.phase === 'after' || rows.every((r) => r.st.finished));
+  const noResults = s.phase === 'after' && !hasData;
 
   return (
     <>
+      {noResults && <div className="card gold"><h3>Výsledky ročníku {s.settings.year} zatím nejsou nahrané</h3>
+        <div className="sm">{race.teams.every((t) => t.scenario) ? 'Můžeš si pustit simulaci závodu na datech z Excelu (tlačítko „Simulace“ nahoře).' : 'Admin je nahraje v sekci Import.'}</div></div>}
       {over && <div className="card gold"><h3>{s.phase === 'after' ? `Závod ${s.settings.year} skončil` : 'Všechny týmy jsou v cíli'}</h3><div className="sm">Konečné výsledky podle čistého času od vlastního startu.</div>
         <div className="row" style={{ marginTop: 8, gap: 8, flexWrap: 'wrap' }}>
           <select aria-label="Tým" value={cardTeam ?? (mine || rows[0]).team.id} onChange={(e) => setCardTeam(e.target.value)} style={{ flex: 1 }}>

@@ -110,3 +110,5 @@ details.card summary{cursor:pointer;font-weight:700}
 table.tbl.sticky th:first-child, table.tbl.sticky td:first-child{position:sticky;left:0;z-index:1;background:var(--card, #fff);box-shadow:2px 0 0 var(--line)}
 
 .fbbar{display:block;text-align:center;padding:7px 12px;background:#1877F2;color:#fff;font-size:13px;font-weight:600;text-decoration:none}
+
+.simbtn{border:0;background:#FFC23D;color:#141414;font:700 12px var(--f-body);padding:6px 9px;border-radius:999px;cursor:pointer;white-space:nowrap}

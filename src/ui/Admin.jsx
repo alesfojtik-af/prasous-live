@@ -281,7 +281,7 @@ function TeamsSection() {
 }
 
 /* ---------- Simulace (jen v tomto zařízení) ---------- */
-function SimSection() {
+export function SimSection() {
   const { s, store, toast } = useApp();
   const race = s.race;
   const sim = s.settings.sim;
@@ -298,7 +298,7 @@ function SimSection() {
     <div className="card" style={{ display: 'grid', gap: 8 }}>
       <h3>Simulace závodu na datech z Excelu</h3>
       {!hasScn && <div className="warnmsg">V Excelu nejsou skutečné časy všech týmů, simulace není k dispozici.</div>}
-      <div className="sm muted">Jen pro zkoušení: běží pouze v tomto zařízení a <b>nic se neukládá do databáze</b>. Ostatní uživatelé simulaci nevidí. Zápis kapitána a opravy admina během simulace jdou také jen do simulace. Ukončením se všechny simulované časy zahodí.</div>
+      <div className="sm muted">Simulace závodu na datech z Excelu: běží pouze v tomto zařízení a <b>nic se neukládá do databáze</b>. Ostatní uživatelé ji nevidí. Zůstane zapnutá i po odchodu z obrazovky nebo zavření aplikace, dokud ji sám neukončíš tlačítkem níže. Ukončením se všechny simulované časy zahodí.</div>
       {!sim.on ? (
         <>
           <div className="field"><label>Začít v čase</label><input value={start} placeholder={defStart} onChange={(e) => setStart(e.target.value)} /></div>

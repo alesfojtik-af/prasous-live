@@ -11,6 +11,7 @@ import { TeamList, TeamDetail } from './Teams.jsx';
 import Login from './Login.jsx';
 import Captain from './Captain.jsx';
 import Admin from './Admin.jsx';
+import { SimSection } from './Admin.jsx';
 import Archive from './Archive.jsx';
 import { daysUntil } from '../domain/phase.js';
 import { fmtHHMM } from '../domain/time.js';
@@ -52,6 +53,9 @@ export default function App() {
   const tabs = [['live', 'Živě', Icons.live], ['map', 'Mapa', Icons.map], ['legs', 'Úseky', Icons.legs], ['teams', 'Týmy', Icons.teams]];
   if (auth.role === 'captain') tabs.push(['captain', 'Můj tým', Icons.captain]);
   if (auth.role === 'admin') tabs.push(['admin', 'Admin', Icons.admin]);
+  // Simulace dokončeného závodu na datech z Excelu: může ji spustit kdokoli, běží jen v jeho zařízení
+  const canSim = !!s.race && s.race.teams.length > 0 && s.race.teams.every((t) => t.scenario) && page !== 'login';
+  const startDemo = () => { store.startSim(Math.min(...s.race.teams.map((t) => t.planStart)) - 5); hashGo('/live'); };
   const pendingN = s.outbox.filter((o) => o.status === 'pending').length;
 
   let body;
@@ -64,6 +68,7 @@ export default function App() {
     case 'login': body = <Login />; break;
     case 'captain': body = <Captain />; break;
     case 'admin': body = <Admin />; break;
+    case 'sim': body = <SimSection />; break;
     case 'archive': body = <Archive />; break;
     default: body = <Live />;
   }
@@ -77,8 +82,9 @@ export default function App() {
           <a href="https://www.prasous.cz" target="_blank" rel="noopener noreferrer" style={{ display: 'flex' }}><img src={`${import.meta.env.BASE_URL}logo.png`} alt="PraSouš (www.prasous.cz)" /></a>
           <span className="year">{s.settings.year}</span>
           <span className="sp" />
+          {!sim && canSim && <button className="simbtn" onClick={startDemo} title={`Spustit simulaci PraSouš ${s.settings.year}`}>▶ Simulace {s.settings.year}</button>}
           {!s.online ? <span className="live off">BEZ SIGNÁLU{pendingN ? ` · ${pendingN}` : ''}</span>
-            : sim ? <span className="live sim" onClick={() => hashGo('/admin')} style={{ cursor: 'pointer' }}>SIMULACE {fmtHHMM(s.settings.sim.now)}</span>
+            : sim ? <span className="live sim" onClick={() => hashGo('/sim')} style={{ cursor: 'pointer' }}>SIMULACE {fmtHHMM(s.settings.sim.now)}</span>
             : s.isArchive ? <span className="live off">ARCHIV</span>
             : s.phase === 'before' ? <span className="live off">ZA {daysUntil(s.settings.date)} DNÍ</span>
             : s.phase === 'after' ? <span className="live off">VÝSLEDKY</span>
@@ -86,7 +92,7 @@ export default function App() {
           <a onClick={() => hashGo('/login')} style={{ cursor: 'pointer', color: auth.role === 'viewer' ? '#6A645E' : '#CC0000', width: 24, height: 24 }} title={auth.role === 'viewer' ? 'Přihlásit' : 'Účet'}>{Icons.login}</a>
         </header>
         {s.banner && <div className="banner">{s.banner}</div>}
-        {sim && <div className="banner">Simulace běží jen na tomto zařízení, do databáze se nic neukládá. Zastavíš ji v Admin → Simulace.</div>}
+        {sim && <div className="banner">Simulace běží jen na tomto zařízení, do databáze se nic neukládá. Zastavíš ji klepnutím na odznak SIMULACE nahoře.</div>}
         {s.isArchive && <div className="banner">Prohlížíš starší ročník {s.settings.year}. <a style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => { store.viewEdition(null); hashGo('/live'); }}>Zpět na aktuální</a></div>}
         {s.settings.fb && ['live', 'map', 'legs', 'teams', 'team', 'finale', undefined, ''].includes(page) && (
           <a className="fbbar" href={s.settings.fb} target="_blank" rel="noopener noreferrer">💬 Komentujte závod na Facebooku</a>)}
