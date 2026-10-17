@@ -65,8 +65,7 @@ export default function Live() {
         <div className="row" style={{ marginTop: 8, gap: 8, flexWrap: 'wrap' }}>
           <select aria-label="Tým" value={cardTeam ?? (mine || rows[0]).team.id} onChange={(e) => setCardTeam(e.target.value)} style={{ flex: 1 }}>
             {rows.map((r) => <option key={r.team.id} value={r.team.id}>{r.rank}. {r.team.name}</option>)}</select>
-          <button className="btn sm" onClick={() => hashGo(`/team/${encodeURIComponent(cardTeam ?? (mine || rows[0]).team.id)}`)}>📣 Karta týmu ke sdílení</button>
-          <button className="btn ghost sm" onClick={() => hashGo('/finale')}>🎬 Přehrát závod</button></div></div>}
+          <button className="btn sm" onClick={() => hashGo(`/team/${encodeURIComponent(cardTeam ?? (mine || rows[0]).team.id)}`)}>📣 Karta týmu ke sdílení</button></div></div>}
       <div className="grid3">
         <div className="kpi"><b>{raceStart != null ? fmtDur(over ? leader.st.projectedNet : Math.max(0, now - raceStart)) : '–'}</b><span>{over ? 'Čas vítěze' : 'V závodě'}</span></div>
         <div className="kpi"><b>{leader.lp.leg >= 10 ? 'cíl' : `${Math.max(1, leader.lp.leg)}/9`}</b><span>Úsek vedoucího</span></div>
