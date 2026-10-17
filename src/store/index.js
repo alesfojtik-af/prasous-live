@@ -13,6 +13,9 @@ const env = import.meta.env || {};
 const readJson = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const emptyLine = () => Array(POINTS).fill(null);
 
+// Facebooková událost ročníku, dokud ji admin nenastaví v Admin → Ostatní
+const DEFAULT_FB = { 2026: 'https://fb.me/e/5srJiXC2r' };
+
 export function createStore() {
   let adapter = null;
   let common = { editions: [], settings: {} };
@@ -46,7 +49,7 @@ export function createStore() {
       editions: common.editions, activeId: activeId(), viewId: vid, edition, isArchive: !!vid && vid !== activeId(),
       race, gpx: body?.id === vid ? body.gpx : null,
       entries, meta, history: sim.on ? sim.history || [] : live.history,
-      settings: { year: edition?.label ?? '', date: edition?.race_date ?? null, fb: common.settings[`fb:${vid}`] || '', looks: common.settings[`looks:${vid}`] || {}, sim: sim.on ? sim : { on: false } },
+      settings: { year: edition?.label ?? '', date: edition?.race_date ?? null, fb: common.settings[`fb:${vid}`] || DEFAULT_FB[vid] || '', looks: common.settings[`looks:${vid}`] || {}, sim: sim.on ? sim : { on: false } },
       phase: racePhase(edition?.race_date, new Date(), !!sim.on),
       outbox: outbox.filter((o) => !vid || o.edition === vid), online: !forceOffline && navigator.onLine !== false, forceOffline,
       ...extra,

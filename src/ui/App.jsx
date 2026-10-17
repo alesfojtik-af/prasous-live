@@ -74,7 +74,7 @@ export default function App() {
     <Ctx.Provider value={ctx}>
       <div className="app">
         <header className="top">
-          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="PraSouš" onClick={() => hashGo('/live')} style={{ cursor: 'pointer' }} />
+          <a href="https://www.prasous.cz" target="_blank" rel="noopener noreferrer" style={{ display: 'flex' }}><img src={`${import.meta.env.BASE_URL}logo.png`} alt="PraSouš (www.prasous.cz)" /></a>
           <span className="year">{s.settings.year}</span>
           <span className="sp" />
           {!s.online ? <span className="live off">BEZ SIGNÁLU{pendingN ? ` · ${pendingN}` : ''}</span>
