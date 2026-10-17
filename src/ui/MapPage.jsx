@@ -36,6 +36,7 @@ export default function MapPage({ finale }) {
     L.polyline(ll, { color: '#fff', weight: 8, opacity: 0.9 }).addTo(map);
     const line = L.polyline(ll, { color: '#CC0000', weight: 5 }).addTo(map);
     map.fitBounds(line.getBounds(), { padding: [20, 20] });
+    layers.current.bounds = line.getBounds();
     if (prep.idx) {
       layers.current.hand = prep.idx.map((ix, i) => L.marker([prep.track[ix].lat, prep.track[ix].lon], {
         icon: L.divIcon({ className: '', html: `<div class="hp ${i === 0 || i === 9 ? 'f' : ''}">${i === 0 ? 'S' : i === 9 ? 'C' : i}</div>`, iconSize: [20, 20], iconAnchor: [10, 10] }),
@@ -84,7 +85,11 @@ export default function MapPage({ finale }) {
 
   return (
     <>
-      <div className="mapwrap"><div ref={boxRef} style={{ position: 'absolute', inset: 0 }} /></div>
+      <div className="mapwrap"><div ref={boxRef} style={{ position: 'absolute', inset: 0 }} />
+        <div style={{ position: 'absolute', right: 8, top: 8, zIndex: 1000, display: 'grid', gap: 6 }}>
+          <button className="pbtn" onClick={() => mapRef.current?.fitBounds(layers.current.bounds, { padding: [20, 20] })}>⤢ Celá trať</button>
+          <button className="pbtn" onClick={() => { const pts = Object.values(layers.current.teams).map((m) => m.getLatLng()); if (pts.length) mapRef.current?.fitBounds(L.latLngBounds(pts), { padding: [50, 50], maxZoom: 15 }); }}>🎯 Týmy</button>
+        </div></div>
       {me && <div className="card sm" style={{ padding: '8px 12px' }}>📌 {me.team.name} · {me.rank}. místo · {me.lp.leg >= 10 ? 'v cíli' : me.lp.leg ? `úsek ${me.lp.leg}` : 'před startem'} · {me.km.toFixed(1).replace('.', ',')} z {totalKm(race).toFixed(1).replace('.', ',')} km</div>}
       <div className="player">
         <div className="row"><span className="xs muted">{live ? 'Živý stav' : 'Přehrávání'}</span><span className="sp" /><span className="clock">{fmtHHMM(t)}</span><span className="xs muted">1 h = 10 s</span></div>

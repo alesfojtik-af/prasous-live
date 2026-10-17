@@ -18,6 +18,8 @@ export function useNow(s) {
 
 /** Trasa z GPX, umístění předávek na ní a výškový profil. */
 export function usePrepared(s) {
+  // klíč podle obsahu: data se při každé synchronizaci načítají znovu, trasa se ale přepočítá jen při skutečné změně
+  const key = s.race ? JSON.stringify(s.race.legs.map((l) => [l.gpsStart, l.gpsEnd])) : '';
   return useMemo(() => {
     if (!s.race || !s.gpx) return null;
     try {
@@ -28,7 +30,8 @@ export function usePrepared(s) {
       const { idx, distM } = locateHandovers(track, pts);
       return { track, idx, distM, profile: elevationProfile(track), total: track[track.length - 1].km };
     } catch (e) { return { error: e.message }; }
-  }, [s.gpx, s.race]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.gpx, key]);
 }
 
 /** Poloha {lat,lon} týmu na trase: leg 0 = start, 10 = cíl. */
