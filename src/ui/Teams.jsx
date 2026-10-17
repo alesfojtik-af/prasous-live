@@ -42,6 +42,8 @@ export function TeamDetail({ id }) {
   if (!r) return <div className="card">Tým nenalezen.</div>;
   const t = r.team, ent = s.entries[t.id], k = r.st.k;
 
+  const kmDone = race.legs.slice(0, Math.max(0, k)).reduce((a, l) => a + l.km, 0);
+  const avgPace = k >= 1 ? paceTxt(netAt(ent, k) / kmDone) : null; // průměr od startu po poslední zapsanou předávku
   const pairs = {};
   t.legs.forEach((l, i) => { const p = (pairs[l.pairNo ?? l.pair] ||= { name: l.pair, legs: [], doneMin: 0, donePlan: 0, doneKm: 0, km: 0, up: 0, down: 0 }); p.legs.push(i + 1); p.km += race.legs[i].km; p.up += race.legs[i].up; p.down += race.legs[i].down;
     const m = legMinutes(ent, i + 1);
@@ -62,7 +64,7 @@ export function TeamDetail({ id }) {
     <>
       <a className="xs muted" style={{ cursor: 'pointer' }} onClick={() => hashGo('/teams')}>‹ Týmy</a>
       <div className="row"><TeamBadge look={r.look} size={52} />
-        <div className="sp"><h2>{t.name}</h2><div className="xs muted">start {fmtHHMM(r.st.planStart)} · {r.rank}. místo</div></div>
+        <div className="sp"><h2>{t.name}</h2><div className="xs muted">start {fmtHHMM(r.st.planStart)} · {r.rank}. místo{avgPace && ` · Ø ${avgPace} min/km`}</div></div>
         <button className="chip" onClick={() => setPinned(pinned === t.id ? null : t.id)}>{pinned === t.id ? '📌 můj' : 'připnout'}</button></div>
       <div className="grid3">
         <div className="kpi"><b>{fmtDur(r.st.projectedNet)}</b><span>{r.st.finished ? 'Čistý čas' : 'Čistý čas (predikce)'}</span></div>
