@@ -1,4 +1,4 @@
-// Čas závodu = minuty od půlnoci (celé minuty, jako HH:MM v Excelu).
+// Čas závodu = minuty od půlnoci dne startu. Po půlnoci pokračuje dál (1465 = 0:25 dalšího dne), proto jsou hodnoty i nad 1440.
 
 export function parseHHMM(text) {
   const m = String(text ?? '').trim().match(/^(\d{1,2})\s*[:.]\s*(\d{2})$/);
@@ -32,13 +32,28 @@ export function nowMinutes(date = new Date()) {
   return date.getHours() * 60 + date.getMinutes();
 }
 
+/** Minuty od půlnoci dne závodu (po půlnoci pokračují nad 1440); dayOffset = kolik dní uplynulo od data závodu. */
+export const raceNowMinutes = (dayOffset = 0, date = new Date()) => nowMinutes(date) + 1440 * Math.max(0, Math.min(2, dayOffset));
+
+/**
+ * Z napsaného HH:MM udělá absolutní čas závodu. Čas se vždy bere jako první možný PO předchozím bodě
+ * (tedy menší hodnota než předchozí = další den); u startu jako nejbližší plánovanému startu.
+ */
+export function resolveClock(text, { prev = null, planStart = null } = {}) {
+  const m = parseHHMM(text);
+  if (m == null) return null;
+  if (prev != null) { let c = m; while (c <= prev) c += 1440; return c; }
+  if (planStart != null) return Math.abs(m + 1440 - planStart) < Math.abs(m - planStart) ? m + 1440 : m;
+  return m;
+}
+
 // Pokus o opravu překlepu v hodinách: vrátí čas nejblíž predikci, jen když je blízko (<= 30 min).
 export function suggestFix(entered, predicted) {
   if (predicted == null) return null;
   let best = null;
   for (let k = -12; k <= 12; k++) {
     const c = entered + 60 * k;
-    if (c < 0 || c >= 1440) continue;
+    if (c < 0 || c >= 2880) continue;
     if (best == null || Math.abs(c - predicted) < Math.abs(best - predicted)) best = c;
   }
   return best != null && best !== entered && Math.abs(best - predicted) <= 30 ? best : null;
@@ -50,16 +65,21 @@ export function suggestFix(entered, predicted) {
  * Vrací { ok, minutes, errors[], warnings[], suggestion }.
  */
 export function validateEntry(text, ctx = {}) {
-  const minutes = parseHHMM(text);
-  const out = { ok: false, minutes, errors: [], warnings: [], suggestion: null };
+  const { prev = null, next = null, predicted = null, now = null, isAdmin = false, planLeg = null, planStart = null } = ctx;
+  const minutes = resolveClock(text, { prev, planStart });
+  const out = { ok: false, minutes, errors: [], warnings: [], suggestion: null, nextDay: minutes != null && minutes >= 1440 };
   if (minutes == null) {
     out.errors.push('Zadej čas ve tvaru HH:MM, např. 14:50.');
     return out;
   }
-  const { prev = null, next = null, predicted = null, now = null, isAdmin = false } = ctx;
   if (prev != null && minutes <= prev) out.errors.push(`Čas musí být po předchozí předávce (${fmtHHMM(prev)}).`);
   if (next != null && minutes >= next) out.errors.push(`Čas musí být před další zapsanou předávkou (${fmtHHMM(next)}).`);
   if (!isAdmin && now != null && minutes > now + 2) out.errors.push(`Čas je v budoucnosti (teď je ${fmtHHMM(now)}).`);
+  // Délka úseku musí být rámcově jako v plánu (0,3× až 3×), jinak jde skoro jistě o překlep; admin může zapsat cokoli.
+  if (!isAdmin && planLeg != null && prev != null) {
+    const dur = minutes - prev;
+    if (dur < planLeg * 0.3 || dur > planLeg * 3) out.errors.push(`Úsek vychází na ${fmtDur(dur)}, v plánu je ${fmtDur(planLeg)} (povoleno ${fmtDur(planLeg * 0.3)}–${fmtDur(planLeg * 3)}). Zkontroluj čas.`);
+  }
   if (predicted != null) {
     const d = minutes - predicted;
     if (Math.abs(d) > 45) {

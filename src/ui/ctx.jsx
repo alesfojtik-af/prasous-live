@@ -1,7 +1,8 @@
 /* Sdílený stav aplikace pro obrazovky: kontext, hodiny závodu, trasa z GPX a vzhled týmů. */
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { parseGpx, locateHandovers, pointBetween, elevationProfile } from '../domain/gpx.js';
-import { nowMinutes } from '../domain/time.js';
+import { raceNowMinutes } from '../domain/time.js';
+import { daysUntil } from '../domain/phase.js';
 
 export const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
@@ -12,8 +13,11 @@ export function useStoreState(store) {
 
 /** Aktuální čas závodu: reálný čas, nebo simulovaný (admin spustil simulaci). */
 export function useNow(s) {
-  const [real, setReal] = useState(nowMinutes());
-  useEffect(() => { const id = setInterval(() => setReal(nowMinutes()), 15000); return () => clearInterval(id); }, []);
+  // po půlnoci čas závodu pokračuje (25 min po půlnoci dne po závodě = 1465)
+  const date = s.settings?.date;
+  const read = () => raceNowMinutes(date ? -daysUntil(date) : 0);
+  const [real, setReal] = useState(read);
+  useEffect(() => { setReal(read()); const id = setInterval(() => setReal(read()), 15000); return () => clearInterval(id); }, [date]); // eslint-disable-line
   return s.settings?.sim?.on ? s.settings.sim.now : real;
 }
 

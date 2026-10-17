@@ -84,7 +84,7 @@ describe('predikce a validace', () => {
   it('validace: formát, pořadí, budoucnost, překlep v hodinách', () => {
     expect(validateEntry('abc').ok).toBe(false);
     expect(validateEntry('25:00').ok).toBe(false);
-    expect(validateEntry('7:00', { prev: 8 * 60 }).ok).toBe(false);
+    expect(validateEntry('7:00', { prev: 8 * 60, now: 9 * 60 }).ok).toBe(false);
     expect(validateEntry('15:00', { now: 14 * 60 }).ok).toBe(false);
     const v = validateEntry('22:50', { predicted: 14 * 60 + 50, now: 23 * 60 });
     expect(v.ok).toBe(false);
@@ -124,5 +124,21 @@ describe('fáze závodu a názvy bodů', () => {
     expect([pointLabel(0), pointLabel(3), pointLabel(9)]).toEqual(['Start', 'Předávka 3', 'Cíl']);
     expect([pointShort(0), pointShort(3), pointShort(9)]).toEqual(['Start', 'P3', 'Cíl']);
     expect(pointTitle(3)).toBe('Předávka 3 · konec úseku 3');
+  });
+});
+
+import { resolveClock } from '../src/domain/time.js';
+describe('přechod přes půlnoc', () => {
+  it('menší čas než předchozí = další den', () => {
+    expect(resolveClock('0:25', { prev: 23 * 60 + 40 })).toBe(1465);
+    expect(resolveClock('15:00', { prev: 14 * 60 })).toBe(900);
+    expect(resolveClock('0:05', { planStart: 23 * 60 + 50 })).toBe(1445);
+  });
+  it('délka úseku 0,3× až 3× plán', () => {
+    const base = { prev: 23 * 60 + 40, planLeg: 60, now: 1600, predicted: 1465 };
+    expect(validateEntry('0:25', base).ok).toBe(true);
+    expect(validateEntry('0:25', base).nextDay).toBe(true);
+    expect(validateEntry('23:45', base).ok).toBe(false);  // 5 min < 0,3× plán
+    expect(validateEntry('4:00', base).ok).toBe(false);   // 4 h 20 > 3× plán
   });
 });

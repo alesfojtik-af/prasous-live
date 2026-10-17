@@ -28,12 +28,14 @@ create table if not exists pl_entries (             -- zapsané časy (minuty od
   edition text not null,
   team text not null,
   point int not null check (point between 0 and 9),
-  minutes int not null check (minutes between 0 and 1439),
+  minutes int not null check (minutes between 0 and 2879),
   by_who text,
   at timestamptz default now(),
   src text,
   primary key (edition, team, point)
 );
+alter table pl_entries drop constraint if exists pl_entries_minutes_check;  -- časy po půlnoci = nad 1440
+alter table pl_entries add constraint pl_entries_minutes_check check (minutes between 0 and 2879);
 create table if not exists pl_history (             -- každá změna zápisu, nic se nemaže
   id bigserial primary key,
   edition text not null, team text not null, point int not null,
@@ -123,7 +125,7 @@ begin
   if d is not null and not ((now() at time zone 'Europe/Prague')::date between d and d + 1) then
     return 'error: zápis je možný jen v den závodu';
   end if;
-  if p_point is null or p_point not between 0 and 9 or p_minutes is null or p_minutes not between 0 and 1439 then
+  if p_point is null or p_point not between 0 and 9 or p_minutes is null or p_minutes not between 0 and 2879 then
     return 'error: neplatná hodnota';
   end if;
   select * into cur from pl_entries where edition = p_edition and team = p_team and point = p_point;
@@ -148,7 +150,7 @@ returns void language plpgsql security definer set search_path = public, extensi
 declare old int;
 begin
   if not pl_admin_ok(p_admin_pw) then raise exception 'Špatné heslo admina.'; end if;
-  if p_point not between 0 and 9 or (p_minutes is not null and p_minutes not between 0 and 1439) then raise exception 'Neplatná hodnota.'; end if;
+  if p_point not between 0 and 9 or (p_minutes is not null and p_minutes not between 0 and 2879) then raise exception 'Neplatná hodnota.'; end if;
   select minutes into old from pl_entries where edition = p_edition and team = p_team and point = p_point;
   if p_minutes is null then
     delete from pl_entries where edition = p_edition and team = p_team and point = p_point;

@@ -113,7 +113,10 @@ function parseTeam(ws, report) {
   // skutečné hodnoty z Excelu = scénář pro simulaci (jen když jsou vyplněné všechny úseky)
   const start = clock(ws.getCell(hr + 1, cActStart));
   const ends = legs.map((l) => (num(ws.getCell(l.row, cAct)) != null ? clock(ws.getCell(l.row, cActEnd)) : null));
-  const scenario = start != null && ends.every((e) => e != null) ? [start, ...ends] : null;
+  const raw = start != null && ends.every((e) => e != null) ? [start, ...ends] : null;
+  // hodiny v Excelu nemají den: čas menší než předchozí = po půlnoci
+  let day = 0;
+  const scenario = raw && raw.map((v, i) => { if (i && v + 1440 * day < raw[i - 1] + 1440 * day) day++; return v + 1440 * day; });
   return {
     id: ws.name, name, sheet: ws.name, planStart, legs: legs.map(({ row, ...l }) => l),
     layout: helperLayout ? 'helper' : 'standard', scenario,

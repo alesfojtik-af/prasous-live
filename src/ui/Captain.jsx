@@ -1,7 +1,8 @@
 /* Obrazovka kapitána: zápis startu a předávek s kontrolou času, fronta zápisů a práce bez signálu. */
 import { useMemo, useState } from 'react';
-import { useApp, hashGo } from './ctx.jsx';
-import { lastIndex, teamState } from '../domain/calc.js';
+import { useApp, hashGo, lookOf } from './ctx.jsx';
+import { lastIndex, teamState, rankingAtPoint } from '../domain/calc.js';
+import { drawSelfieCard, fileToImage, shareCard, downloadBlob, canvasToBlob } from './share.js';
 import { fmtHHMM, fmtDur, validateEntry, pointLabel, pointTitle } from '../domain/time.js';
 
 const normTxt = (x) => (/^\d{3,4}$/.test(x) ? `${x.slice(0, -2)}:${x.slice(-2)}` : x);
@@ -25,7 +26,7 @@ function CaptainInner({ t }) {
   const pairNext = np === 0 ? null : t.legs[np] ?? null;
   const planClock = np === 0 ? t.planStart : (ent[0] ?? t.planStart) + t.legs.slice(0, np).reduce((a, l) => a + Math.round(l.planMin), 0);
   const predicted = np === 0 ? t.planStart : st.predicted[np];
-  const val = useMemo(() => validateEntry(normTxt(txt), { prev: np > 0 ? ent[np - 1] : null, predicted, now, isAdmin: false }), [txt, np, ent, predicted, now]);
+  const val = useMemo(() => validateEntry(normTxt(txt), { prev: np > 0 ? ent[np - 1] : null, predicted, now, isAdmin: false, planStart: t.planStart, planLeg: np > 0 ? t.legs[np - 1].planMin : null }), [txt, np, ent, predicted, now, t]);
   const mine = s.outbox.filter((o) => o.team === t.id);
   const canWrite = s.phase === 'live' && !s.isArchive;
   const pending = mine.filter((o) => o.status === 'pending').length;
@@ -45,6 +46,21 @@ function CaptainInner({ t }) {
     toast(s.online ? 'Předávka zapsána ✓' : 'Uloženo v telefonu, odešle se po obnovení signálu.');
   };
   const label = pointTitle(np);
+  const last = lastIndex(ent); // poslední zapsaný bod (selfie patří k němu)
+  const [selfie, setSelfie] = useState(null); // { url, canvas }
+  const takeSelfie = async (file) => {
+    if (!file) return;
+    const photo = await fileToImage(file);
+    const look = lookOf(s.settings, t, s.race.teams.findIndex((x) => x.id === t.id));
+    const rank = last >= 1 ? rankingAtPoint(s.race, s.entries, last)[t.id] : null;
+    const canvas = await drawSelfieCard({ photo, teamName: t.name, emoji: look.emoji, color: look.color, pointText: pointLabel(last), timeText: fmtHHMM(ent[last]),
+      rankText: rank ? `${rank}. místo celkově po ${last}. úseku` : 'Vyrážíme!', hint: last >= 1 ? s.race.legs[last - 1].selfie : null, year: s.settings.year });
+    setSelfie({ url: canvas.toDataURL('image/jpeg', 0.85), canvas });
+  };
+  const shareSelfie = async () => {
+    const res = await shareCard(selfie.canvas, `${t.name} na PraSouši ${s.settings.year}: ${pointLabel(last)} 📸`);
+    if (res === 'copied') toast('Obrázek je ve schránce a stažený. Ve Facebooku ho vložte Ctrl+V.');
+  };
 
   return (
     <>
@@ -70,6 +86,7 @@ function CaptainInner({ t }) {
           </div>
           {txt && val.errors.map((e) => <div key={e} className="errmsg">⚠ {e}</div>)}
           {txt && val.warnings.map((e) => <div key={e} className="warnmsg">⚠ {e}{confirm ? ' Klepni znovu pro potvrzení.' : ''}</div>)}
+          {txt && val.ok && val.nextDay && <div className="warnmsg">🌙 Čas je po půlnoci, počítá se jako další den ({fmtHHMM(val.minutes)}).</div>}
           {txt && val.ok && !val.warnings.length && <div className="okmsg">✓ Čas vypadá správně</div>}
           <div className="row">
             {val.suggestion != null && <button className="btn ghost sm" style={{ flex: 1 }} onClick={() => { setTxt(fmtHHMM(val.suggestion)); setConfirm(false); }}>Použít {fmtHHMM(val.suggestion)}</button>}
@@ -78,6 +95,20 @@ function CaptainInner({ t }) {
           <div className="keypad">{['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', ':'].map((k) => <button key={k} onClick={() => press(k)} aria-label={k}>{k}</button>)}</div>
           <button className="btn" disabled={!val.ok || busy} onClick={save}>{confirm ? 'Opravdu uložit' : np === 0 ? 'Uložit start' : 'Uložit předávku'}</button>
         </>
+      )}
+      {last >= 0 && (
+        <div className="card" style={{ display: 'grid', gap: 8 }}>
+          <b>📸 Selfie z bodu „{pointLabel(last)}“</b>
+          {last >= 1 && s.race.legs[last - 1].selfie && <div className="xs muted">Tip: {s.race.legs[last - 1].selfie}</div>}
+          <label className="btn ghost sm" style={{ textAlign: 'center' }}>{selfie ? 'Vyfotit znovu' : 'Vyfotit / vybrat fotku'}
+            <input type="file" accept="image/*" capture="user" hidden onChange={(e) => takeSelfie(e.target.files?.[0])} /></label>
+          {selfie && <>
+            <img className="sharecard" src={selfie.url} alt="Selfie karta" />
+            <button className="btn" onClick={shareSelfie}>📣 Sdílet na Facebook</button>
+            <button className="btn ghost sm" onClick={async () => downloadBlob(await canvasToBlob(selfie.canvas), 'prasous-selfie.png')}>⬇ Uložit obrázek</button>
+          </>}
+          <div className="xs muted">Fotka zůstává jen ve tvém telefonu, do databáze se neukládá.</div>
+        </div>
       )}
       <div className="sec">Moje zápisy</div>
       <div className="card" style={{ padding: '4px 12px' }}>

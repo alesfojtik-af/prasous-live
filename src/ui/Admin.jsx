@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react';
 import xlsxUrl from '../../data/2026/prasous-2026.xlsx?url';
 import gpxUrl from '../../data/2026/trasa-2026.gpx?url';
-import { useApp, hashGo, lookOf, PALETTE_COLORS } from './ctx.jsx';
+import { useApp, usePrepared, hashGo, lookOf, PALETTE_COLORS } from './ctx.jsx';
+import { recordRaceVideo } from './video.js';
 import { parseWorkbook, exportWorkbook } from '../domain/excel.js';
 import { parseGpx, locateHandovers } from '../domain/gpx.js';
 import { validateEntry, fmtHHMM, parseHHMM, pointLabel, pointShort } from '../domain/time.js';
@@ -314,6 +315,16 @@ function OtherSection() {
   const { s, store, toast } = ctx;
   const race = s.race;
   const all = race && race.teams.every((t) => s.entries[t.id]?.[9] != null);
+  const prep = usePrepared(s);
+  const [vid, setVid] = useState({ busy: false, p: 0 });
+  const makeVideo = async () => {
+    setVid({ busy: true, p: 0 });
+    try {
+      const { blob, ext } = await recordRaceVideo({ race, entries: s.entries, prep, settings: s.settings }, (p) => setVid({ busy: true, p }));
+      downloadBlob(blob, `prasous-${s.settings.year}-video.${ext}`); toast('Video je stažené ✓');
+    } catch (e) { toast(e.message); }
+    setVid({ busy: false, p: 0 });
+  };
   const [pw, setPw] = useState({ old: '', next: '' });
   const wipe = async () => {
     if (!race) return;
@@ -327,6 +338,8 @@ function OtherSection() {
         <h3>Po závodě</h3>
         <button className="btn dark" disabled={!race} onClick={() => exportExcel(ctx)}>⬇ Export Excelu (stejný formát jako import)</button>
         <button className="btn" disabled={!all} onClick={() => hashGo('/finale')}>🎬 Vygenerovat video závodu</button>
+        <button className="btn dark" disabled={!all || vid.busy} onClick={makeVideo}>{vid.busy ? `⏺ Nahrávám… ${Math.round(vid.p * 100)} %` : '🎥 Stáhnout video jako soubor'}</button>
+        {vid.busy && <div className="xs muted">Video (30–60 s) se nahrává v reálném čase. Nech tuto stránku otevřenou.</div>}
         <div className="xs muted">{all ? 'Všechny týmy jsou v cíli: otevře se přehrání celého závodu a stažení výsledkových karet týmů.' : 'Tlačítko se odemkne, až všechny týmy zapíšou cíl.'}</div>
       </div>
       <div className="card" style={{ display: 'grid', gap: 8 }}>

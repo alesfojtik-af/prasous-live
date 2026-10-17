@@ -40,7 +40,10 @@ export default function Live() {
 
   return (
     <>
-      {over && <div className="card gold"><h3>{s.phase === 'after' ? `Závod ${s.settings.year} skončil` : 'Všechny týmy jsou v cíli'}</h3><div className="sm">Konečné výsledky podle čistého času od vlastního startu.</div></div>}
+      {over && <div className="card gold"><h3>{s.phase === 'after' ? `Závod ${s.settings.year} skončil` : 'Všechny týmy jsou v cíli'}</h3><div className="sm">Konečné výsledky podle čistého času od vlastního startu.</div>
+        <div className="row" style={{ marginTop: 8, gap: 8 }}>
+          <button className="btn sm" onClick={() => hashGo(`/team/${encodeURIComponent((mine || rows[0]).team.id)}`)}>📣 Karta {mine ? 'mého týmu' : 'vítěze'} ke sdílení</button>
+          <button className="btn ghost sm" onClick={() => hashGo('/finale')}>🎬 Přehrát závod</button></div></div>}
       <div className="grid3">
         <div className="kpi"><b>{raceStart != null ? fmtDur(over ? leader.st.projectedNet : Math.max(0, now - raceStart)) : '–'}</b><span>{over ? 'Čas vítěze' : 'V závodě'}</span></div>
         <div className="kpi"><b>{leader.lp.leg >= 10 ? 'cíl' : `${Math.max(1, leader.lp.leg)}/9`}</b><span>Úsek vedoucího</span></div>
