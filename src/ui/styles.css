@@ -49,7 +49,7 @@ h2{font-size:18px} h3{font-size:15px}
 .list .li:last-child{border-bottom:0}
 .li .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .li .rt{text-align:right;display:grid;gap:3px;justify-items:end;flex:none}
-.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:2px}
 .chip{font-size:12px;font-weight:700;padding:6px 11px;border-radius:999px;background:var(--card);border:1px solid var(--line);white-space:nowrap;cursor:pointer;flex:none}
 .chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
 .btn{display:block;width:100%;text-align:center;font-weight:700;padding:12px;border-radius:12px;background:var(--red);color:#fff;font-size:15px;border:0;cursor:pointer;text-decoration:none}

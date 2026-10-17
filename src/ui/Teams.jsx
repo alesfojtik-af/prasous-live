@@ -3,8 +3,8 @@ import { useMemo, useRef, useEffect, useState } from 'react';
 import { useApp, usePrepared, hashGo } from './ctx.jsx';
 import { buildRows } from './derive.js';
 import { TeamBadge, Delta } from './common.jsx';
-import { legMinutes, legRanking, cumPlan } from '../domain/calc.js';
-import { fmtDur, fmtHHMM } from '../domain/time.js';
+import { legMinutes, legRanking, rankingAtPoint, netAt, cumPlan } from '../domain/calc.js';
+import { fmtDur, fmtHHMM, fmtGap } from '../domain/time.js';
 import { drawShareCard, shareCard, canvasToBlob, downloadBlob } from './share.js';
 
 export function TeamList() {
@@ -36,6 +36,8 @@ export function TeamDetail({ id }) {
   const rows = useMemo(() => (race ? buildRows(race, s.entries, now, s.settings) : []), [race, s.entries, now, s.settings]);
   const [card, setCard] = useState(null);
   const r = rows.find((x) => x.team.id === id);
+  const rankAfter = useMemo(() => (race ? Array.from({ length: 9 }, (_, i) => rankingAtPoint(race, s.entries, i + 1)) : []), [race, s.entries]);
+  const bestNet = (n) => Math.min(...race.teams.map((x) => netAt(s.entries[x.id], n)).filter((v) => v != null));
   const rankLegs = useMemo(() => (race ? Array.from({ length: 9 }, (_, i) => legRanking(race, s.entries, i + 1)) : []), [race, s.entries]);
   if (!r) return <div className="card">Tým nenalezen.</div>;
   const t = r.team, ent = s.entries[t.id], k = r.st.k;
@@ -81,7 +83,9 @@ export function TeamDetail({ id }) {
             <div className="st" key={n}>
               <span className={`nd ${done ? 'done' : running ? 'now' : ''}`} />
               <div><b>Ú{n} · {l.pair}</b> <span className="xs muted">{race.legs[i].km.toFixed(1).replace('.', ',')} km</span>
-                <div className="xs muted">{done ? `${fmtDur(m)} · plán ${fmtDur(l.planMin)} · ${rankLegs[i][t.id]}. na úseku` : running ? `právě běží · predikce předávky` : `plán ${fmtDur(l.planMin)}`}</div></div>
+                <div className="xs muted">{done ? `${fmtDur(m)} · plán ${fmtDur(l.planMin)} · ${rankLegs[i][t.id]}. na úseku` : running ? `právě běží · predikce předávky` : `plán ${fmtDur(l.planMin)}`}</div>
+                {done && <div className="xs muted">celkem {rankAfter[i][t.id]}. · {netAt(ent, n) - bestNet(n) === 0 ? 'vedoucí' : `ztráta ${fmtGap(Math.round(netAt(ent, n) - bestNet(n)))}`} · proti plánu {fmtGap(Math.round(netAt(ent, n) - cumPlan(t, n)))}</div>}
+              </div>
               <div className="rt" style={{ textAlign: 'right', display: 'grid', gap: 3, justifyItems: 'end' }}>
                 <span className="tb">{fmtHHMM(done ? ent[n] : r.st.predicted[n])}</span>{done && <Delta v={m - l.planMin} />}</div>
             </div>
