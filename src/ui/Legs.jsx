@@ -42,7 +42,7 @@ export default function Legs({ n }) {
       </div>
       <div className="sec">Úsek {leg} a pořadí po něm</div>
       <div className="card" style={{ padding: '4px 8px', overflowX: 'auto' }}>
-        <table className="tbl">
+        <table className="tbl sticky">
           <thead><tr><th>Tým</th><th>Poř. úsek</th><th>Čas úseku</th><th>Ztráta úsek</th><th>min/km úsek</th><th>Poř. celkem</th><th>Odstup od 1.</th><th>Vs plán</th><th>Předávka</th><th>Ø min/km</th></tr></thead>
           <tbody>
             {list.map(({ t, m, net, plan, rank, rankAfter, look, running, clock, vsPlan }) => (

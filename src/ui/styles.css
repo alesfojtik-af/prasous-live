@@ -104,3 +104,6 @@ table.tbl td.cell{cursor:pointer;font-family:var(--f-mono)} table.tbl td.cell:ho
 .leaflet-container{font-family:var(--f-body)}
 .sharecard{width:100%;border-radius:14px;border:1px solid var(--line);display:block}
 details.card summary{cursor:pointer;font-weight:700}
+
+/* Tabulka úseků: sloupec s týmem zůstává při posunu vlevo */
+table.tbl.sticky th:first-child, table.tbl.sticky td:first-child{position:sticky;left:0;z-index:1;background:var(--card, #fff);box-shadow:2px 0 0 var(--line)}
