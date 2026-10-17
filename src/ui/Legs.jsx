@@ -49,7 +49,7 @@ export default function Legs({ n }) {
               <tr key={t.id} style={{ cursor: 'pointer' }} onClick={() => hashGo(`/team/${encodeURIComponent(t.id)}`)}>
                 <td><span className="row" style={{ gap: 6 }}><TeamBadge look={look} size={22} />{t.name}</span><div className="xs muted">{plan.pair}</div></td>
                 <td>{rank ?? (running ? 'běží' : '–')}</td>
-                <td className="tb">{m != null ? fmtDur(m) : '–'}</td>
+                <td className="tb" style={m != null && m === bestLeg ? { background: 'var(--gold-soft)', fontWeight: 700 } : undefined}>{m != null ? fmtDur(m) : '–'}</td>
                 <td>{m != null ? gapTxt(m - bestLeg) : '–'}</td>
                 <td>{m != null ? (L.km / (m / 60)).toFixed(1).replace('.', ',') : '–'}</td>
                 <td><b>{rankAfter ?? '–'}</b></td>

@@ -7,6 +7,9 @@ import { legMinutes, legRanking, rankingAtPoint, netAt, cumPlan } from '../domai
 import { fmtDur, fmtHHMM, fmtGap } from '../domain/time.js';
 import { drawShareCard, shareCard, canvasToBlob, downloadBlob } from './share.js';
 
+// Tempo v min:vteř na kilometr.
+const paceTxt = (minPerKm) => { const sec = Math.round(minPerKm * 60); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; };
+
 export function TeamList() {
   const { s, now, pinned, setPinned } = useApp();
   const rows = useMemo(() => (s.race ? buildRows(s.race, s.entries, now, s.settings) : []), [s.race, s.entries, now, s.settings]);
@@ -43,7 +46,9 @@ export function TeamDetail({ id }) {
   const t = r.team, ent = s.entries[t.id], k = r.st.k;
 
   const pairs = {};
-  t.legs.forEach((l, i) => { const p = (pairs[l.pairNo ?? l.pair] ||= { name: l.pair, legs: [], km: 0, up: 0, down: 0 }); p.legs.push(i + 1); p.km += race.legs[i].km; p.up += race.legs[i].up; p.down += race.legs[i].down; });
+  t.legs.forEach((l, i) => { const p = (pairs[l.pairNo ?? l.pair] ||= { name: l.pair, legs: [], doneMin: 0, donePlan: 0, doneKm: 0, km: 0, up: 0, down: 0 }); p.legs.push(i + 1); p.km += race.legs[i].km; p.up += race.legs[i].up; p.down += race.legs[i].down;
+    const m = legMinutes(ent, i + 1);
+    if (m != null) { p.doneMin += m; p.donePlan += l.planMin; p.doneKm += race.legs[i].km; } });
 
   const makeCard = async () => drawShareCard({
     teamName: t.name, emoji: r.look.emoji, color: r.look.color, rank: r.rank, netText: fmtDur(r.st.projectedNet),
@@ -70,7 +75,8 @@ export function TeamDetail({ id }) {
       <div className="sec">Dvojice</div>
       <div className="card" style={{ display: 'grid', gap: 6 }}>
         {Object.entries(pairs).map(([no, p], i) => (
-          <div key={no} className="row"><b style={{ width: 70 }}>Dvojice {i + 1}</b><div className="sp sm">{p.name}<div className="xs muted">úseky {p.legs.join(', ')} · {p.km.toFixed(1).replace('.', ',')} km · ↑{p.up} ↓{p.down} m</div></div></div>
+          <div key={no} className="row"><b style={{ width: 70 }}>Dvojice {i + 1}</b><div className="sp sm">{p.name}<div className="xs muted">úseky {p.legs.join(', ')} · {p.km.toFixed(1).replace('.', ',')} km · ↑{p.up} ↓{p.down} m</div>
+            {p.doneKm > 0 && <div className="xs muted">celkem {fmtDur(p.doneMin)} · tempo {paceTxt(p.doneMin / p.doneKm)} min/km · proti plánu {fmtGap(Math.round(p.doneMin - p.donePlan))}</div>}</div></div>
         ))}
       </div>
       <div className="sec">Časová osa</div>
