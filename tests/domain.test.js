@@ -158,8 +158,10 @@ describe('slovní hodnocení', () => {
     const all = raceComment(race, entries);
     const mine = raceComment(race, entries, race.teams[0].id);
     expect(all).toMatch(/^Závod dokončilo 7 týmů/);
-    expect(mine).toContain(race.teams[0].name);
-    expect(mine.split('. ').length).toBeLessThanOrEqual(2); // jedna věta (bod za pořadím nepočítáme)
+    expect(mine).toMatch(/^Doběhli jste na \d+\. místě/);
+    expect(mine).toMatch(/Nejlépe jste stáli na \d+\. místě po \d\. úseku/);
+    expect(mine).toMatch(/dvojice/);
+    for (const other of race.teams.slice(1)) expect(mine).not.toContain(other.name); // jiné týmy se nekomentují
     expect(raceComment(race, {})).toBe('');
   });
 });

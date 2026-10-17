@@ -1,5 +1,5 @@
 /* Slovní zhodnocení závodu: jedna pozitivní věta o plnění plánu (pro kartu týmu a video po konci závodu). */
-import { cumPlan, netAt } from './calc.js';
+import { cumPlan, netAt, legMinutes, rankingAtPoint } from './calc.js';
 import { fmtDur } from './time.js';
 
 export const CONGRATS = 'Gratulujeme, skvělý výkon!';
@@ -23,8 +23,28 @@ export function raceComment(race, entries, teamId = null) {
   const beat = done.filter((x) => x.gap <= 0).length;
   const everyone = `${beat > 0 ? `plán splnilo nebo překonalo ${beat} z ${done.length} týmů, nejvíc ${best.team.name} (${best.gap < 0 ? `o ${-best.gap} min rychleji` : 'přesně podle plánu'})`
     : `všechny týmy se plánu těsně držely, nejblíže ${best.team.name} (jen ${best.gap} min za plánem)`}`;
-  const mine = teamId && done.find((x) => x.team.id === teamId);
-  if (!mine) return `Závod dokončilo ${done.length} týmů a ${everyone}.`;
-  const vs = mine.gap < 0 ? `o ${-mine.gap} min rychleji než plán` : mine.gap === 0 ? 'přesně podle plánu' : `jen ${mine.gap} min za plánem`;
-  return `Tým ${mine.team.name} doběhl na ${rank(mine)}. místě v čase ${fmtDur(mine.net)}, ${vs}, a celkově ${everyone}.`;
+  if (teamId) return teamComment(race, entries, teamId);
+  return `Závod dokončilo ${done.length} týmů a ${everyone}.`;
+}
+
+/**
+ * Komentář jen k jednomu týmu a jeho dvojicím: výsledek proti plánu, nejlepší pozice a po kterém úseku, kolikrát se měnila pozice
+ * a která dvojice plán překonala nejvíc. Jiné týmy se nezmiňují.
+ */
+export function teamComment(race, entries, teamId) {
+  const t = race.teams.find((x) => x.id === teamId), ent = entries[teamId];
+  if (!t || netAt(ent, 9) == null) return '';
+  const gap = Math.round(netAt(ent, 9) - cumPlan(t, 9));
+  const ranks = Array.from({ length: 9 }, (_, i) => rankingAtPoint(race, entries, i + 1)[teamId]);
+  const best = Math.min(...ranks), bestLeg = ranks.indexOf(best) + 1;
+  const changes = ranks.slice(1).filter((r, i) => r !== ranks[i]).length;
+  const pairs = {};
+  t.legs.forEach((l, i) => { const p = (pairs[l.pairNo ?? l.pair] ||= { name: l.pair, diff: 0 }); p.diff += legMinutes(ent, i + 1) - l.planMin; });
+  const bestPair = Object.values(pairs).reduce((a, b) => (b.diff < a.diff ? b : a));
+  const d = Math.round(bestPair.diff);
+  const vs = gap < 0 ? `o ${-gap} min rychleji než plán` : gap === 0 ? 'přesně podle plánu' : `jen ${gap} min za plánem`;
+  const pos = `Nejlépe jste stáli na ${best}. místě po ${bestLeg}. úseku${changes ? ` a o pozice jste se přetahovali ${changes}×` : ' a pozici jste si drželi celý závod'}.`;
+  const pair = d < 0 ? `Plán nejvíc překonala dvojice ${bestPair.name} (o ${-d} min).` : d === 0 ? `Plán přesně splnila dvojice ${bestPair.name}.` : `Plánu se nejvíc přiblížila dvojice ${bestPair.name} (jen ${d} min za ním).`;
+  const rank = 1 + race.teams.filter((x) => netAt(entries[x.id], 9) != null && netAt(entries[x.id], 9) < netAt(ent, 9)).length;
+  return `Doběhli jste na ${rank}. místě ${vs}. ${pos} ${pair}`;
 }
